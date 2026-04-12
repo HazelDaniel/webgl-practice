@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>50 random triangles</title>
+    <script src="./shader2.js"></script>
+    <style>
+      canvas {
+        width: 100vw;
+        height: 100vh;
+        border: 1px solid black;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="glcanvas"></canvas>
+    <script id="rect-data" type="notjs"></script>
+    <script id="vertex-shader" type="x-shader/x-vertex">
+      attribute vec2 a_position;
+      uniform vec2 u_resolution;
+      void main() {
+        vec2 zeroToOne = a_position / u_resolution;
+        vec2 zeroToTwo = zeroToOne * 2.0;
+        vec2 clipSpace = zeroToTwo - 1.0;
+
+        gl_Position = vec4(clipSpace * vec2(1, -1), 0.0, 1.0);
+      }
+    </script>
+
+    <script id="fragment-shader" type="x-shader/x-fragment">
+      precision mediump float;
+      void main() {
+        gl_FragColor = vec4(0.2, 0,6, 1.0);
+      }
+    </script>
+  </body>
+</html>
