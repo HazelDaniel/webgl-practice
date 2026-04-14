@@ -70,7 +70,28 @@ function initShaders(gl, FS_SOURCE = "", VS_SOURCE = "") {
   return program;
 }
 
-function run() {
+function initVerticesBuffer(gl) {
+  const vertices = new Float32Array(
+    [0.0, 0.5,
+    -0.5, -0.5,
+     0.5, -0.5]);
+
+  const n = 3;
+
+  const buffer = gl.createBuffer();
+
+  if (!buffer) {
+    delete vertices;
+    return -1;
+  }
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+  return n;
+}
+
+function runQuadrantPointColors() {
   const canvas = document.getElementById("canvas");
   const gl = canvas.getContext("webgl");
   const vertexShaderSource =
@@ -85,23 +106,40 @@ function run() {
 
   const program = initShaders(gl, fragmentShaderSource, vertexShaderSource);
   const aPositionLocation = gl.getAttribLocation(program, "a_position");
+  const uColorLocation = gl.getUniformLocation(program, "u_fragColor");
 
   const positionHistory = [];
+  const colorHistory = [];
 
   gl.clearColor(0.0, 0.0, 0.0, 1.0);
   resizeCanvasToDisplaySize(canvas);
   gl.viewport(0, 0, canvas.width, canvas.height);
   gl.clear(gl.COLOR_BUFFER_BIT);
-  
+
   canvas.addEventListener("mousedown", function (event) {
     let x = event.clientX;
     let y = event.clientY;
     const rect = event.target.getBoundingClientRect();
-    
-    x = ((x - rect.left) - (canvas.width/2)) / (canvas.width / 2);
-    y = (((y - rect.top) - (canvas.height/2)) * -1) / (canvas.height / 2);
+
+    x = (x - rect.left - canvas.width / 2) / (canvas.width / 2);
+    y = ((y - rect.top - canvas.height / 2) * -1) / (canvas.height / 2);
     positionHistory.push(x);
     positionHistory.push(y);
+
+    if (x >= 0 && y >= 0) {
+      // Q1
+      colorHistory.push([1.0, 0.0, 0.0]);
+    } else if (y >= 0 && x < 0) {
+      // Q2
+      colorHistory.push([0.0, 1.0, 0.0]);
+    } else if (x < 0 && y < 0) {
+      // Q3
+      colorHistory.push([0.0, 0.0, 1.0]);
+    } else {
+      // Q4
+      colorHistory.push([1.0, 0.0, 1.0]);
+    }
+
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     for (let ii = 0; ii < positionHistory.length; ii += 2) {
@@ -111,10 +149,57 @@ function run() {
         positionHistory[ii + 1],
         0.0
       );
+      gl.uniform4f(
+        uColorLocation,
+        colorHistory[ii / 2][0],
+        colorHistory[ii / 2][1],
+        colorHistory[ii / 2][2],
+        1.0
+      );
       gl.drawArrays(gl.POINTS, 0, 1.0);
     }
   });
+}
 
+function runTriangleRender() {
+  const canvas = document.getElementById("canvas");
+  const gl = canvas.getContext("webgl");
+  const vertexShaderSource =
+    document.getElementById("vertex-shader")?.textContent;
+  const fragmentShaderSource =
+    document.getElementById("fragment-shader")?.textContent;
+
+  if (!gl) {
+    console.warn("your browser doesn't support webgl");
+    return;
+  }
+
+  const program = initShaders(gl, fragmentShaderSource, vertexShaderSource);
+  const aPositionLocation = gl.getAttribLocation(program, "a_position");
+  const uColorLocation = gl.getUniformLocation(program, "u_fragColor");
+
+  gl.clearColor(0.0, 0.0, 0.0, 1.0);
+  resizeCanvasToDisplaySize(canvas);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+
+  const n = initVerticesBuffer(gl);
+
+  if (n < 0) {
+    console.error("failed to init vertices buffer!");
+    return;
+  }
+
+  gl.uniform4f(uColorLocation, 1.0, 0.0, 0.0, 1.0);
+
+  gl.vertexAttribPointer(aPositionLocation, 2, gl.FLOAT, false, 0, 0);
+  gl.enableVertexAttribArray(aPositionLocation);
+  gl.drawArrays(gl.TRIANGLES, 0, n);
+}
+
+function run() {
+  // runQuadrantPointColors();
+  runTriangleRender();
   console.log("shaders running smoothly");
 }
 

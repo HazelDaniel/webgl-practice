@@ -7,7 +7,7 @@
     <script src="./click-to-point.js"></script>
     <style>
       body {
-        padding:0  8rem;
+        padding: 0 8rem;
       }
       * {
         margin: 0;
@@ -17,7 +17,7 @@
     </style>
   </head>
   <body>
-    <canvas id="canvas" style="width: 100%; height: 100%;"></canvas>
+    <canvas id="canvas" style="width: 100%; height: 100%"></canvas>
     <script type="x-shader/vertex" id="vertex-shader">
       attribute vec4 a_position;
 
@@ -27,8 +27,10 @@
       }
     </script>
     <script type="x-shader/fragment" id="fragment-shader">
+      precision mediump float;
+      uniform vec4 u_fragColor;
       void main () {
-        gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+        gl_FragColor = u_fragColor;
       }
     </script>
   </body>
