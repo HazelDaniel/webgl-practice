@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>color 'em triangles</title>
+    <script src="./lib/cuon-matrix.js"></script>
+    <script src="./multi-colored-triangle.js"></script>
+    <style>
+      canvas {
+        width: 100%;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <script
+      type="x-shader/vertex"
+      id="vertex-source"
+      style="width: 0px; height: 0px"
+    >
+      attribute vec4 a_Position;
+      uniform mat4 u_ModelMatrix;
+
+      void main () {
+        gl_Position = a_Position * u_ModelMatrix;
+      }
+    </script>
+
+    <script
+      type="x-shader/fragment"
+      id="fragment-source"
+      style="width: 0px; height: 0px"
+    >
+      precision mediump float;
+      uniform vec2 u_Dim;
+
+      void main () {
+        gl_FragColor = vec4(gl_FragCoord.x/u_Dim.x, 0.0, gl_FragCoord.y/u_Dim.y, 1.0);
+      }
+    </script>
+  </body>
+</html>

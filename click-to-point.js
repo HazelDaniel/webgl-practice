@@ -70,13 +70,10 @@ function initShaders(gl, FS_SOURCE = "", VS_SOURCE = "") {
   return program;
 }
 
-function initVerticesBuffer(gl) {
-  const vertices = new Float32Array(
-    [0.0, 0.5,
-    -0.5, -0.5,
-     0.5, -0.5]);
+function initVerticesBuffer(gl, vertexComponentSize) {
+  const vertices = new Float32Array([0.0, 0.5, -0.5, -0.5, 0.5, -0.5]);
 
-  const n = 3;
+  const n = vertices.length / vertexComponentSize;
 
   const buffer = gl.createBuffer();
 
@@ -177,13 +174,14 @@ function runTriangleRender() {
   const program = initShaders(gl, fragmentShaderSource, vertexShaderSource);
   const aPositionLocation = gl.getAttribLocation(program, "a_position");
   const uColorLocation = gl.getUniformLocation(program, "u_fragColor");
+  const vertexComponentSize = 2;
 
   gl.clearColor(0.0, 0.0, 0.0, 1.0);
   resizeCanvasToDisplaySize(canvas);
   gl.viewport(0, 0, canvas.width, canvas.height);
   gl.clear(gl.COLOR_BUFFER_BIT);
 
-  const n = initVerticesBuffer(gl);
+  const n = initVerticesBuffer(gl, vertexComponentSize);
 
   if (n < 0) {
     console.error("failed to init vertices buffer!");
@@ -192,7 +190,14 @@ function runTriangleRender() {
 
   gl.uniform4f(uColorLocation, 1.0, 0.0, 0.0, 1.0);
 
-  gl.vertexAttribPointer(aPositionLocation, 2, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribPointer(
+    aPositionLocation,
+    vertexComponentSize,
+    gl.FLOAT,
+    false,
+    0,
+    0
+  );
   gl.enableVertexAttribArray(aPositionLocation);
   gl.drawArrays(gl.TRIANGLES, 0, n);
 }
