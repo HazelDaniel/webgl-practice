@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Colorful Rect (coz why not?)</title>
+    <script src="./colorful-rect.js" type="module"></script>
+  </head>
+  <body>
+    <canvas id="webgl-canvas" style="width: 100%; height: 100%"></canvas>
+    <script type="x-shader/vertex" id="vertex-source">
+      attribute vec4 a_position;
+      attribute vec4 a_color;
+      varying vec4 v_color;
+      void main () {
+        v_color = a_color;
+        gl_Position = a_position;
+      }
+    </script>
+    <script type="x-shader/fragment" id="fragment-source">
+      precision mediump float;
+      uniform vec2 u_Dim;
+      varying vec4 v_color;
+
+      void main () {
+        gl_FragColor = (vec4(gl_FragCoord.x / u_Dim.x, 0.0, gl_FragCoord.y / u_Dim.y, 1.0) + v_color)/2.0;
+      }
+    </script>
+  </body>
+</html>
