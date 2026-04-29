@@ -4,6 +4,7 @@
     // File Layout
     "rootDir": "./src/scripts",
     "outDir": "./dist",
+    "typeRoots": ["./lib/types.d.ts"],
 
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
