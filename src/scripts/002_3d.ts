@@ -83,51 +83,64 @@ function initShaders(
   return true;
 }
 
-function initColorCoordsVerticesBuffer(
+function initArrayBuffer(
   gl: WebGLRenderingContext,
-  componentPerVertex: number,
-  componentGap: number
-): number {
+  data: Float32Array,
+  num: number,
+  type: number,
+  attribLocation: number
+): boolean {
   //prettier-ignore
-  const vertices = new Float32Array([
-    -0.25, 0.4, -0.2, 1.0,       0.0, 1.0, 0.0,
-    -0.4, -0.25, -0.2, 1.0,      0.0, 1.0, 0.0,
-    0.0, -0.4, -0.2, 1.0,        0.0, 1.0, 0.0,
-
-    -0.5, 0.65, -0.5, 1.0,       0.0, 1.0, 1.0,
-    -0.65, -0.5, -0.5, 1.0,      0.0, 1.0, 1.0,
-    0.0, -0.65, -0.5, 1.0,        0.0, 1.0, 1.0,
-
-    -0.5, 0.65, -0.9, 1.0,       1.0, 0.0, 0.0,
-    -0.65, -0.5, -0.9, 1.0,      1.0, 0.0, 0.0,
-    0.0, -0.65, -0.9, 1.0,        1.0, 0.0, 0.0,
-  ])
-
   const buffer = gl.createBuffer();
 
-  if (componentPerVertex <= 0) {
-    console.error("Invalid number of components per vertex");
-    return -1;
-  }
-
-  if (!buffer) {
-    console.error("Failed to create the buffer object");
-    return -1;
-  }
+  //prettier-ignore
+  if (!buffer) { console.error("webgl couldn't create buffer!"); return false; }
 
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
 
-  return vertices.length / (componentPerVertex + componentGap);
+  gl.enableVertexAttribArray(attribLocation);
+  // console.log("number is ", num);
+  gl.vertexAttribPointer(attribLocation, num, type, false, 0, 0);
+
+  return true;
+}
+
+function draw(
+  gl: WebGLRenderingContext,
+  n: number,
+  u_viewModelMat: WebGLUniformLocation,
+  u_Proj: WebGLUniformLocation,
+  viewModelMat: Matrix4,
+  projMat: Matrix4,
+  lookAtObj: LookAtStruct,
+  canvas: HTMLCanvasElement
+) {
+  const { atX, atY, atZ, eyeX, eyeY, eyeZ, upX, upY, upZ } = lookAtObj;
+
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.POLYGON_OFFSET_FILL);
+  gl.clearColor(0.0, 0.0, 0.0, 1.0);
+
+  viewModelMat.setLookAt(eyeX, eyeY, eyeZ, atX, atY, atZ, upX, upY, upZ);
+  projMat.setPerspective(45, canvas.width / canvas.height, 1.0, 90.0);
+  gl.uniformMatrix4fv(u_viewModelMat, false, viewModelMat.elements);
+  gl.uniformMatrix4fv(u_Proj, false, projMat.elements);
+
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  gl.polygonOffset(1.0, 1.0);
+
+  gl.drawElements(gl.TRIANGLES, n, gl.UNSIGNED_BYTE, 0);
 }
 
 function handleMouseDownRender(
   gl: WebGLRenderingContext,
   n: number,
   u_viewModelMat: WebGLUniformLocation,
-  // u_Proj: WebGLUniformLocation,
+  u_Proj: WebGLUniformLocation,
   viewModelMat: Matrix4,
-  // projMat: Matrix4,
+  projMat: Matrix4,
   lookAtObj: LookAtStruct,
   e: MouseEvent,
   canvas: HTMLCanvasElement
@@ -136,41 +149,25 @@ function handleMouseDownRender(
   let x = e.clientX - left - width / 2;
   let y = e.clientY - top - height / 2;
 
-  x /= canvas.width / 2;
+  x /= canvas.width / 4;
   y /= -canvas.height / 2;
 
   lookAtObj.eyeX = x;
   lookAtObj.eyeY = y;
-  // draw(gl, n, u_viewModelMat, u_Proj, viewModelMat, projMat, lookAtObj, canvas);
-  draw(gl, n, u_viewModelMat, viewModelMat, lookAtObj, canvas);
+
+  draw(
+    gl,
+    36,
+    u_viewModelMat,
+    u_Proj,
+    viewModelMat,
+    projMat,
+    lookAtObj,
+    canvas
+  );
 }
 
-function draw(
-  gl: WebGLRenderingContext,
-  n: number,
-  u_viewModelMat: WebGLUniformLocation,
-  // u_Proj: WebGLUniformLocation,
-  viewModelMat: Matrix4,
-  // projMat: Matrix4,
-  lookAtObj: LookAtStruct,
-  canvas: HTMLCanvasElement
-) {
-  const { atX, atY, atZ, eyeX, eyeY, eyeZ, upX, upY, upZ } = lookAtObj;
-
-  gl.enable(gl.DEPTH_TEST);
-  gl.enable(gl.POLYGON_OFFSET_FILL);
-
-  viewModelMat.setLookAt(eyeX, eyeY, eyeZ, atX, atY, atZ, upX, upY, upZ);
-  // projMat.setPerspective(35, canvas.width / canvas.height, 1.0, 90.0);
-  gl.uniformMatrix4fv(u_viewModelMat, false, viewModelMat.elements);
-  // gl.uniformMatrix4fv(u_Proj, false, projMat.elements);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  gl.polygonOffset(1.0, 1.0);
-
-  gl.drawArrays(gl.TRIANGLES, 0, n);
-}
-
-function run3dTriangleViewRender(
+function run3dCubeViewRender(
   canvas: HTMLCanvasElement,
   gl: WebGLRenderingContext
 ): boolean {
@@ -179,24 +176,92 @@ function run3dTriangleViewRender(
   gl.clearColor(0.0, 0.0, 0.0, 1.0);
   gl.clear(gl.COLOR_BUFFER_BIT);
 
-  const positionComponentPerVertex = 4;
-  const positionComponentGap = 3;
-  const positionComponentStride = 7;
+  //prettier-ignore
+  const colors = new Float32Array([
+    0.4, 0.4, 1.0,    0.4, 0.4, 1.0,    0.4, 0.4, 1.0,    0.4, 0.4, 1.0,
+    0.4, 1.0, 0.4,    0.4, 1.0, 0.4,    0.4, 1.0, 0.4,    0.4, 1.0, 0.4,
+    1.0, 0.4, 0.4,    1.0, 0.4, 0.4,    1.0, 0.4, 0.4,    1.0, 0.4, 0.4,
+    1.0, 1.0, 0.4,    1.0, 1.0, 0.4,    1.0, 1.0, 0.4,    1.0, 1.0, 0.4,
+    1.0, 0.4, 1.0,    1.0, 0.4, 1.0,    1.0, 0.4, 1.0,    1.0, 0.4, 1.0,
+    0.4, 1.0, 1.0,    0.4, 1.0, 1.0,    0.4, 1.0, 1.0,    0.4, 1.0, 1.0
+    
+  ]);
 
-  const colorComponentPerVertex = 3;
-  const colorComponentGap = 4;
-  const colorComponentStride = 7;
+  const vertices = new Float32Array([
+    // Front
+    -0.5, -0.5, 0.5, 1.0, 0.5, -0.5, 0.5, 1.0, 0.5, 0.5, 0.5, 1.0, -0.5, 0.5,
+    0.5, 1.0,
 
-  const n = initColorCoordsVerticesBuffer(
-    gl,
-    positionComponentPerVertex,
-    positionComponentGap
-  );
+    // Back
+    -0.5, -0.5, -0.5, 1.0, -0.5, 0.5, -0.5, 1.0, 0.5, 0.5, -0.5, 1.0, 0.5, -0.5,
+    -0.5, 1.0,
 
-  if (n < 0) return false;
+    // Left
+    -0.5, -0.5, -0.5, 1.0, -0.5, -0.5, 0.5, 1.0, -0.5, 0.5, 0.5, 1.0, -0.5, 0.5,
+    -0.5, 1.0,
+
+    // Right
+    0.5, -0.5, -0.5, 1.0, 0.5, 0.5, -0.5, 1.0, 0.5, 0.5, 0.5, 1.0, 0.5, -0.5,
+    0.5, 1.0,
+
+    // Top
+    -0.5, 0.5, -0.5, 1.0, -0.5, 0.5, 0.5, 1.0, 0.5, 0.5, 0.5, 1.0, 0.5, 0.5,
+    -0.5, 1.0,
+
+    // Bottom
+    -0.5, -0.5, -0.5, 1.0, 0.5, -0.5, -0.5, 1.0, 0.5, -0.5, 0.5, 1.0, -0.5,
+    -0.5, 0.5, 1.0,
+  ]);
+
+  //prettier-ignore
+  // const vertices = new Float32Array([
+  //   -0.5, 0.5, 0.5, 1.0,          0.5, 0.5, 0.5, 1.0,
+  //   -0.5, -0.5, 0.5, 1.0,         0.5, -0.5, 0.5, 1.0,
+
+  //   0.5, 0.5, 0.5, 1.0,          0.5, 0.5, -0.5, 1.0,
+  //   0.5, -0.5, -0.5, 1.0,          0.5, -0.5, 0.5, 1.0,
+
+  //   -0.5, 0.5, -0.5, 1.0,          0.5, 0.5, -0.5, 1.0,
+  //   -0.5, -0.5, -0.5, 1.0,         0.5, -0.5, -0.5, 1.0,
+
+  //   -0.5, 0.5, 0.5, 1.0,          -0.5, 0.5, -0.5, 1.0,
+  //   -0.5, -0.5, -0.5, 1.0,          -0.5, -0.5, 0.5, 1.0,
+
+  //   -0.5, 0.5, 0.5, 1.0,          0.5, 0.5, 0.5, 1.0,
+  //   0.5, 0.5, -0.5, 1.0,          -0.5, 0.5, -0.5, 1.0,
+
+  //   -0.5, -0.5, 0.5, 1.0,          0.5, 0.5, 0.5, 1.0,
+  //   0.5, -0.5, -0.5, 1.0,          -0.5, -0.5, -0.5, 1.0,
+
+  // ]);
+
+  //prettier-ignore
+  const indices = new Uint8Array([
+    0, 1, 2,        0, 2, 3,
+    4, 5, 6,        4, 6, 7,
+    8, 9, 10,        8, 10, 11,
+    12, 13, 14,        12, 14, 15,
+    16, 17, 18,        16, 18, 19,
+    20, 21, 22,        20, 22, 23,
+  ]);
+
+  const indexBuffer = gl.createBuffer();
+  //prettier-ignore
+  if (!indexBuffer) { console.error("webgl couldn't create buffer!"); return false; }
+  //prettier-ignore
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+
+  //prettier-ignore
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
 
   const a_color = gl.getAttribLocation((gl as any).program, "a_color");
   const a_position = gl.getAttribLocation((gl as any).program, "a_position");
+
+  //prettier-ignore
+  if (!initArrayBuffer(gl, vertices, 4, gl.FLOAT, a_position)) { return false; }
+  //prettier-ignore
+  if (!initArrayBuffer(gl, colors, 3, gl.FLOAT, a_color)) { return false; }
+
   //prettier-ignore
   const u_viewModelMat = gl.getUniformLocation( (gl as any).program, "u_viewModelMat");
   const u_ProjMat = gl.getUniformLocation((gl as any).program, "u_Proj");
@@ -213,32 +278,12 @@ function run3dTriangleViewRender(
   if (!u_ProjMat) { console.error("invalid location for u_Proj returned"); return false;}
   // projMat.setOrtho(-1.0, 1.0, -1.0, 1.0, 1.0, 9);
 
-  gl.enableVertexAttribArray(a_position);
-  gl.enableVertexAttribArray(a_color);
-
   gl.uniformMatrix4fv(u_ProjMat, false, projMat.elements);
-
-  gl.vertexAttribPointer(
-    a_position,
-    positionComponentPerVertex,
-    gl.FLOAT,
-    false,
-    positionComponentStride * Float32Array.BYTES_PER_ELEMENT,
-    0
-  );
-  gl.vertexAttribPointer(
-    a_color,
-    colorComponentPerVertex,
-    gl.FLOAT,
-    false,
-    colorComponentStride * Float32Array.BYTES_PER_ELEMENT,
-    positionComponentPerVertex * Float32Array.BYTES_PER_ELEMENT
-  );
 
   const globalLookAtObject: LookAtStruct = {
     eyeX: 0.25,
     eyeY: 0.25,
-    eyeZ: 0.1,
+    eyeZ: 3.1,
     atX: 0.0,
     atY: 0.0,
     atZ: 0.0,
@@ -250,11 +295,11 @@ function run3dTriangleViewRender(
   document.addEventListener("mousemove", (e) => {
     handleMouseDownRender(
       gl,
-      n,
+      24,
       u_viewModelMat,
-      // u_ProjMat,
+      u_ProjMat,
       viewModelMat,
-      // projMat,
+      projMat,
       globalLookAtObject,
       e,
       canvas
@@ -284,6 +329,6 @@ function run() {
   if (!shaderInitSuccess) return;
 
   // renderStatus = runTriangleRender(canvas, gl);
-  renderStatus = run3dTriangleViewRender(canvas, gl);
+  renderStatus = run3dCubeViewRender(canvas, gl);
   if (!renderStatus) return;
 }
