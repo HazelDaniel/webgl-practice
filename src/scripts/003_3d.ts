@@ -12,6 +12,9 @@ interface LookAtStruct {
   upZ: number;
 }
 
+type Coord4 = [number, number, number, number];
+type Coord3 = [number, number, number];
+
 function resizeCanvasToDisplaySize(canvas: HTMLCanvasElement) {
   const displayWidth = canvas.clientWidth;
   const displayHeight = canvas.clientHeight;
@@ -123,7 +126,7 @@ function draw(
   gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
   viewModelMat.setLookAt(eyeX, eyeY, eyeZ, atX, atY, atZ, upX, upY, upZ);
-  projMat.setPerspective(30, canvas.width / canvas.height, 1.0, 90.0);
+  projMat.setPerspective(45, canvas.width / canvas.height, 1.0, 90.0);
   gl.uniformMatrix4fv(u_viewModelMat, false, viewModelMat.elements);
   gl.uniformMatrix4fv(u_Proj, false, projMat.elements);
 
@@ -195,41 +198,36 @@ function run3dCubeViewRender(
 
   //prettier-ignore
   let colors = new Float32Array([
-    0.4, 0.4, 1.0,    0.4, 0.4, 1.0,    0.4, 0.4, 1.0,    0.4, 0.4, 1.0,
+    0.4, 1.0, 1.0,    0.4, 0.4, 1.0,    0.4, 0.4, 4.0,    0.4, 0.4, 0.4,
     0.4, 1.0, 0.4,    0.4, 1.0, 0.4,    0.4, 1.0, 0.4,    0.4, 1.0, 0.4,
-    1.0, 0.4, 0.4,    1.0, 0.4, 0.4,    1.0, 0.4, 0.4,    1.0, 0.4, 0.4,
+    1.0, 0.4, 0.4,    1.0, 0.4, 0.4,    1.0, 1.0, 0.4,    1.0, 0.4, 0.4,
     0.0, 0.0, 1.0,    0.0, 0.0, 1.0,    0.0, 0.0, 1.0,    0.0, 0.0, 1.0,
     1.0, 0.4, 1.0,    1.0, 0.4, 1.0,    1.0, 0.4, 1.0,    1.0, 0.4, 1.0,
     0.4, 1.0, 1.0,    0.4, 1.0, 1.0,    0.4, 1.0, 1.0,    0.4, 1.0, 1.0
     
   ]);
 
-  // colors = new Float32Array(colorsWhiteRaw);
+  colors = new Float32Array(colorsWhiteRaw);
 
+  //prettier-ignore
   const vertices = new Float32Array([
     // Front
-    -0.5, -0.5, 0.5, 1.0, 0.5, -0.5, 0.5, 1.0, 0.5, 0.5, 0.5, 1.0, -0.5, 0.5,
-    0.5, 1.0,
+    -0.5, -0.5, 0.5, 1.0,   0.5, -0.5, 0.5, 1.0,    0.5, 0.5, 0.5, 1.0,   -0.5, 0.5, 0.5, 1.0,
 
     // Back
-    -0.5, -0.5, -0.5, 1.0, -0.5, 0.5, -0.5, 1.0, 0.5, 0.5, -0.5, 1.0, 0.5, -0.5,
-    -0.5, 1.0,
+    -0.5, -0.5, -0.5, 1.0,    -0.5, 0.5, -0.5, 1.0,   0.5, 0.5, -0.5, 1.0,    0.5, -0.5, -0.5, 1.0,
 
     // Left
-    -0.5, -0.5, -0.5, 1.0, -0.5, -0.5, 0.5, 1.0, -0.5, 0.5, 0.5, 1.0, -0.5, 0.5,
-    -0.5, 1.0,
+    -0.5, -0.5, -0.5, 1.0,    -0.5, -0.5, 0.5, 1.0,   -0.5, 0.5, 0.5, 1.0,    -0.5, 0.5, -0.5, 1.0,
 
     // Right
-    0.5, -0.5, -0.5, 1.0, 0.5, 0.5, -0.5, 1.0, 0.5, 0.5, 0.5, 1.0, 0.5, -0.5,
-    0.5, 1.0,
+    0.5, -0.5, -0.5, 1.0,   0.5, 0.5, -0.5, 1.0,    0.5, 0.5, 0.5, 1.0,   0.5, -0.5, 0.5, 1.0,
 
     // Top
-    -0.5, 0.5, -0.5, 1.0, -0.5, 0.5, 0.5, 1.0, 0.5, 0.5, 0.5, 1.0, 0.5, 0.5,
-    -0.5, 1.0,
+    -0.5, 0.5, -0.5, 1.0,   -0.5, 0.5, 0.5, 1.0,    0.5, 0.5, 0.5, 1.0,   0.5, 0.5, -0.5, 1.0,
 
     // Bottom
-    -0.5, -0.5, -0.5, 1.0, 0.5, -0.5, -0.5, 1.0, 0.5, -0.5, 0.5, 1.0, -0.5,
-    -0.5, 0.5, 1.0,
+    -0.5, -0.5, -0.5, 1.0,    0.5, -0.5, -0.5, 1.0,   0.5, -0.5, 0.5, 1.0,    -0.5, -0.5, 0.5, 1.0,
   ]);
 
   //prettier-ignore
@@ -255,6 +253,18 @@ function run3dCubeViewRender(
   // ]);
 
   //prettier-ignore
+  const normals = new Float32Array([
+    0.0, 0.0, 1.0, 1.0,       0.0, 0.0, 1.0, 1.0,     0.0, 0.0, 1.0, 1.0,     0.0, 0.0, 1.0, 1.0,
+    0.0, 0.0, -1.0, 1.0,      0.0, 0.0, -1.0, 1.0,     0.0, 0.0, -1.0, 1.0,      0.0, 0.0, -1.0, 1.0,
+
+    -1.0, 0.0, 0.0, 1.0,      -1.0, 0.0, 0.0, 1.0,     -1.0, 0.0, 0.0, 1.0,      -1.0, 0.0, 0.0, 1.0,
+    1.0, 0.0, 0.0, 1.0,      1.0, 0.0, 0.0, 1.0,     1.0, 0.0, 0.0, 1.0,      1.0, 0.0, 0.0, 1.0,
+
+    0.0, 1.0, 0.0, 1.0,      0.0, 1.0, 0.0, 1.0,     0.0, 1.0, 0.0, 1.0,      0.0, 1.0, 0.0, 1.0,
+    0.0, -1.0, 0.0, 1.0,      0.0, -1.0, 0.0, 1.0,     0.0, -1.0, 0.0, 1.0,      0.0, -1.0, 0.0, 1.0,
+  ])
+
+  //prettier-ignore
   const indices = new Uint8Array([
     0, 1, 2,        0, 2, 3,
     4, 5, 6,        4, 6, 7,
@@ -263,6 +273,12 @@ function run3dCubeViewRender(
     16, 17, 18,        16, 18, 19,
     20, 21, 22,        20, 22, 23,
   ]);
+
+  const lightColor: Coord4 = [1.0, 0.0, 0.0, 1.0];
+  const ambientLightColor: Vector3 = new Vector3([0.2, 0.0, 0.0, 1.0]);
+  const lightDirection: Vector3 = new Vector3([0.2, 0.4, 0.5, 1.0]);
+
+  lightDirection.normalize();
 
   const indexBuffer = gl.createBuffer();
   //prettier-ignore
@@ -274,15 +290,17 @@ function run3dCubeViewRender(
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
 
   const a_color = gl.getAttribLocation((gl as any).program, "a_color");
+  const a_norm = gl.getAttribLocation((gl as any).program, "a_norm");
   const a_position = gl.getAttribLocation((gl as any).program, "a_position");
 
   //prettier-ignore
-  if (!initArrayBuffer(gl, vertices, 4, gl.FLOAT, a_position)) { return false; }
-  //prettier-ignore
-  if (!initArrayBuffer(gl, colors, 3, gl.FLOAT, a_color)) { return false; }
-
-  //prettier-ignore
   const u_viewModelMat = gl.getUniformLocation( (gl as any).program, "u_viewModelMat");
+  //prettier-ignore
+  const u_LightColor = gl.getUniformLocation( (gl as any).program, "u_LightColor");
+  //prettier-ignore
+  const u_AmbientColor = gl.getUniformLocation( (gl as any).program, "u_AmbientColor");
+  //prettier-ignore
+  const u_LightDirection = gl.getUniformLocation( (gl as any).program, "u_LightDirection");
   const u_ProjMat = gl.getUniformLocation((gl as any).program, "u_Proj");
   const viewModelMat = new Matrix4();
   const projMat = new Matrix4();
@@ -295,9 +313,26 @@ function run3dCubeViewRender(
   if (!u_viewModelMat) { console.error("invalid location for u_viewModelMat returned"); return false;}
   //prettier-ignore
   if (!u_ProjMat) { console.error("invalid location for u_Proj returned"); return false;}
+  //prettier-ignore
+  if (!u_LightColor) { console.error("invalid location for u_LightColor returned"); return false; }
+  //prettier-ignore
+  if (!u_AmbientColor) { console.error("invalid location for u_AmbientColor returned"); return false; }
+  //prettier-ignore
+  if (!u_LightDirection) { console.error("invalid location for u_LightDirection returned"); return false; }
+
   // projMat.setOrtho(-1.0, 1.0, -1.0, 1.0, 1.0, 9);
 
+  //prettier-ignore
+  if (!initArrayBuffer(gl, vertices, 4, gl.FLOAT, a_position)) { return false; }
+  //prettier-ignore
+  if (!initArrayBuffer(gl, colors, 3, gl.FLOAT, a_color)) { return false; }
+  //prettier-ignore
+  if (!initArrayBuffer(gl, normals, 4, gl.FLOAT, a_norm)) { return false; }
+
   gl.uniformMatrix4fv(u_ProjMat, false, projMat.elements);
+  gl.uniform4f(u_LightColor, ...lightColor);
+  gl.uniform3fv(u_LightDirection, lightDirection.elements);
+  gl.uniform3fv(u_AmbientColor, ambientLightColor.elements);
 
   const globalLookAtObject: LookAtStruct = {
     eyeX: 0.25,
