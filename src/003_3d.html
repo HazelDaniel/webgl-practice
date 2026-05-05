@@ -27,21 +27,26 @@
       varying vec4 v_color;
 
       uniform vec4 u_LightColor;
-      uniform vec3 u_LightDirection;
+      uniform vec3 u_LightPosition;
       uniform vec3 u_AmbientColor;
       uniform mat4 u_viewModelMat;
       uniform mat4 u_Proj;
 
       vec4 normal;
       vec3 diffuse;
+      vec3 lightDirection;
+      vec4 vertexPosition;
 
       void main () {
+
+        vertexPosition = u_viewModelMat * a_position; // getting position in world coordinates after the transformation
+        lightDirection = normalize(u_LightPosition - vec3(vertexPosition)); // getting the direction of the light source
+
         normal = normalize(a_norm);
-        diffuse = (vec3(u_LightColor) * vec3(a_color)) * max(dot(u_LightDirection.xyz, normal.xyz), 0.0);
+        diffuse = (vec3(u_LightColor) * vec3(a_color)) * max(dot(lightDirection.xyz, normal.xyz), 0.0);
 
         v_color = vec4(diffuse, 1.0) + vec4((u_AmbientColor * a_color.rgb), 1.0);
-        // v_color = vec4(diffuse, 1.0);
-        gl_Position =  u_Proj * u_viewModelMat * a_position;
+        gl_Position =  u_Proj * vertexPosition;
       }
     </script>
     <script type="x-shader/fragment" id="fragment-source">

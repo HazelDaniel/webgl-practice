@@ -1,5 +1,29 @@
 document.addEventListener("DOMContentLoaded", run);
 
+//@ts-ignore
+const multiplyVector4 = function (mat: Matrix4, v: Coord4) {
+  const e = mat.elements;
+
+  return new Vector4([
+    (e[0] as number) * v[0] +
+      (e[4] as number) * v[1] +
+      (e[8] as number) * v[2] +
+      (e[12] as number) * v[3],
+    (e[1] as number) * v[0] +
+      (e[5] as number) * v[1] +
+      (e[9] as number) * v[2] +
+      (e[13] as number) * v[3],
+    (e[2] as number) * v[0] +
+      (e[6] as number) * v[1] +
+      (e[10] as number) * v[2] +
+      (e[14] as number) * v[3],
+    (e[3] as number) * v[0] +
+      (e[7] as number) * v[1] +
+      (e[11] as number) * v[2] +
+      (e[15] as number) * v[3],
+  ]);
+};
+
 interface LookAtStruct {
   eyeX: number;
   eyeY: number;
@@ -275,10 +299,11 @@ function run3dCubeViewRender(
   ]);
 
   const lightColor: Coord4 = [1.0, 0.0, 0.0, 1.0];
-  const ambientLightColor: Vector3 = new Vector3([0.2, 0.0, 0.0, 1.0]);
-  const lightDirection: Vector3 = new Vector3([0.2, 0.4, 0.5, 1.0]);
+  const ambientLightColor: Vector3 = new Vector3([0.2, 0.0, 0.0]);
+  // const lightDirection: Vector3 = new Vector3([2.0, 4.0, 5.0, 1.0]); // world coordinates
+  const lightPosition: Vector3 = new Vector3([1.0, 3.0, 5.0]); // world coordinates
 
-  lightDirection.normalize();
+  // lightDirection.normalize();
 
   const indexBuffer = gl.createBuffer();
   //prettier-ignore
@@ -300,7 +325,8 @@ function run3dCubeViewRender(
   //prettier-ignore
   const u_AmbientColor = gl.getUniformLocation( (gl as any).program, "u_AmbientColor");
   //prettier-ignore
-  const u_LightDirection = gl.getUniformLocation( (gl as any).program, "u_LightDirection");
+  // const u_LightDirection = gl.getUniformLocation( (gl as any).program, "u_LightDirection");
+  const u_LightPosition = gl.getUniformLocation( (gl as any).program, "u_LightPosition");
   const u_ProjMat = gl.getUniformLocation((gl as any).program, "u_Proj");
   const viewModelMat = new Matrix4();
   const projMat = new Matrix4();
@@ -318,7 +344,7 @@ function run3dCubeViewRender(
   //prettier-ignore
   if (!u_AmbientColor) { console.error("invalid location for u_AmbientColor returned"); return false; }
   //prettier-ignore
-  if (!u_LightDirection) { console.error("invalid location for u_LightDirection returned"); return false; }
+  if (!u_LightPosition) { console.error("invalid location for u_LightPosition returned"); return false; }
 
   // projMat.setOrtho(-1.0, 1.0, -1.0, 1.0, 1.0, 9);
 
@@ -331,8 +357,19 @@ function run3dCubeViewRender(
 
   gl.uniformMatrix4fv(u_ProjMat, false, projMat.elements);
   gl.uniform4f(u_LightColor, ...lightColor);
-  gl.uniform3fv(u_LightDirection, lightDirection.elements);
+  // gl.uniform3fv(u_LightDirection, lightDirection.elements);
+  gl.uniform3fv(u_LightPosition, lightPosition.elements);
   gl.uniform3fv(u_AmbientColor, ambientLightColor.elements);
+
+  const lightPosView = [1.0, 3.0, 5.0, 1.0];
+  let lightPosViewVec: Vector4;
+  lightPosViewVec = multiplyVector4(viewModelMat, lightPosView as Coord4);
+  gl.uniform3f(
+    u_LightPosition,
+    lightPosViewVec.elements[0] as number,
+    lightPosViewVec.elements[1] as number,
+    lightPosViewVec.elements[2] as number
+  );
 
   const globalLookAtObject: LookAtStruct = {
     eyeX: 0.25,
