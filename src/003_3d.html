@@ -25,10 +25,8 @@
       attribute vec4 a_norm;
 
       varying vec4 v_color;
+      varying vec4 v_norm;
 
-      uniform vec4 u_LightColor;
-      uniform vec3 u_LightPosition;
-      uniform vec3 u_AmbientColor;
       uniform mat4 u_viewModelMat;
       uniform mat4 u_Proj;
 
@@ -37,15 +35,18 @@
       vec3 lightDirection;
       vec4 vertexPosition;
 
+      varying vec4 v_normal;
+      varying vec4 v_position;
+
       void main () {
 
         vertexPosition = u_viewModelMat * a_position; // getting position in world coordinates after the transformation
-        lightDirection = normalize(u_LightPosition - vec3(vertexPosition)); // getting the direction of the light source
-
         normal = normalize(a_norm);
-        diffuse = (vec3(u_LightColor) * vec3(a_color)) * max(dot(lightDirection.xyz, normal.xyz), 0.0);
+        v_normal = normal;
+        v_color = a_color;
 
-        v_color = vec4(diffuse, 1.0) + vec4((u_AmbientColor * a_color.rgb), 1.0);
+        v_position = vertexPosition;
+
         gl_Position =  u_Proj * vertexPosition;
       }
     </script>
@@ -53,9 +54,27 @@
       precision mediump float;
 
       varying vec4 v_color;
+      varying vec4 v_position;
+      varying vec4 v_normal;
+
+
+      uniform vec4 u_LightColor;
+      uniform vec3 u_LightPosition;
+      uniform vec3 u_AmbientColor;
+
+      vec3 lightDirection;
+      vec3 diffuse;
+      float cosTheta;
+      vec3 ambient;
 
       void main () {
-        gl_FragColor = vec4(v_color.r, v_color.g, v_color.b, 1.0);
+        lightDirection = normalize(u_LightPosition - vec3(v_position));
+        cosTheta = max(dot(lightDirection, vec3(v_normal)), 0.0);
+
+        diffuse = vec3(u_LightColor) * vec3(v_color) * cosTheta;
+        ambient = u_AmbientColor * v_color.rgb;
+
+        gl_FragColor = vec4(diffuse + ambient, 1.0);
       }
     </script>
   </body>
