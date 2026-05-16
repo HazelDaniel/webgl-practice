@@ -163,7 +163,6 @@ function draw(
 
 function handleMouseDownRender(
   gl: WebGLRenderingContext,
-  n: number,
   u_viewModelMat: WebGLUniformLocation,
   u_Proj: WebGLUniformLocation,
   viewModelMat: Matrix4,
@@ -356,7 +355,6 @@ function run3dCubeViewRender(
   document.addEventListener("mousemove", (e) => {
     handleMouseDownRender(
       gl,
-      24,
       u_viewModelMat,
       u_ProjMat,
       viewModelMat,

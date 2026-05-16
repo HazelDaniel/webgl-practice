@@ -57,7 +57,6 @@
       varying vec4 v_position;
       varying vec4 v_normal;
 
-
       uniform vec4 u_LightColor;
       uniform vec3 u_LightPosition;
       uniform vec3 u_AmbientColor;
@@ -69,12 +68,12 @@
 
       void main () {
         lightDirection = normalize(u_LightPosition - vec3(v_position));
-        cosTheta = max(dot(lightDirection, vec3(v_normal)), 0.0);
+        cosTheta = max(dot(lightDirection, normalize(vec3(v_normal))), 0.0);
 
         diffuse = vec3(u_LightColor) * vec3(v_color) * cosTheta;
         ambient = u_AmbientColor * v_color.rgb;
 
-        gl_FragColor = vec4(diffuse + ambient, 1.0);
+        gl_FragColor = vec4(diffuse + ambient, v_color.a);
       }
     </script>
   </body>
