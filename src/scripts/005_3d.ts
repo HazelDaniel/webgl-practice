@@ -234,6 +234,27 @@ function handleKeyDown(
       gArm1Angle = (gArm1Angle + ANGLE_STEP) % 360;
       break;
     }
+    case 90: {
+      // Z key -> the positive rotation of joint2
+      gJoint2Angle = (gJoint2Angle + ANGLE_STEP) % 360;
+      break;
+    }
+    case 88: {
+      // X key -> the negative rotation of joint2
+      gJoint2Angle = (gJoint2Angle - ANGLE_STEP) % 360;
+      break;
+    }
+    case 86: {
+      // V key -> the positive rotation of joint3
+      if (gJoint3Angle < 60.0) gJoint3Angle = (gJoint3Angle + ANGLE_STEP) % 360;
+      break;
+    }
+    case 67: {
+      // C key -> the negative rotation of joint3
+      if (gJoint3Angle > -60.0)
+        gJoint3Angle = (gJoint3Angle - ANGLE_STEP) % 360;
+      break;
+    }
     default:
       return;
   }
@@ -248,7 +269,32 @@ function draw(
   MVPMatrixLocation: WebGLUniformLocation,
   NormalMatrixLocation: WebGLUniformLocation
 ) {
+  const vertextBoxHeight = 10.0;
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  gModelMatrix.setIdentity();
+
+  //BASE
+  /**
+   *  set height to 10 units
+   *  translate -12 units
+   *  rotateY by gArm1Angle
+   *  drawBox
+   */
+  const baseHeight = 0.3;
+
+  gModelMatrix.translate(0.0, -12, 0.0);
+  drawBox(
+    gl,
+    n,
+    1.2,
+    baseHeight,
+    1.2,
+    ViewProjMatrix,
+    MVPMatrixLocation,
+    NormalMatrixLocation
+  );
+
   // ARM1
   /**
    *  set height to 10 units
@@ -256,10 +302,21 @@ function draw(
    *  rotateY by gArm1Angle
    *  drawBox
    */
-  const arm1Length = 10;
-  gModelMatrix.setTranslate(0.0, -12.0, 0.0);
+  const arm1Length = 1.8;
+
+  gModelMatrix.translate(0.0, baseHeight * vertextBoxHeight, 0.0);
   gModelMatrix.rotate(gArm1Angle, 0.0, 1.0, 0.0);
-  drawBox(gl, n, ViewProjMatrix, MVPMatrixLocation, NormalMatrixLocation);
+  gModelMatrix.scale(1.0, 0.8, 1.0);
+  drawBox(
+    gl,
+    n,
+    1.2,
+    arm1Length,
+    1.2,
+    ViewProjMatrix,
+    MVPMatrixLocation,
+    NormalMatrixLocation
+  );
 
   // ARM2
   /**
@@ -268,21 +325,119 @@ function draw(
    *  scale along x-z plane by 0.3 units each
    *  drawBox
    */
+  const arm2Length = 0.6 * arm1Length;
 
-  gModelMatrix.translate(0.0, arm1Length, 0.0);
+  gModelMatrix.translate(0.0, arm1Length * vertextBoxHeight, 0.0);
   gModelMatrix.rotate(gJoint1Angle, 0.0, 0.0, 1.0);
-  gModelMatrix.scale(1.3, 1.0, 1.3);
 
-  drawBox(gl, n, ViewProjMatrix, MVPMatrixLocation, NormalMatrixLocation);
+  drawBox(
+    gl,
+    n,
+    1.2,
+    arm2Length,
+    1.2,
+    ViewProjMatrix,
+    MVPMatrixLocation,
+    NormalMatrixLocation
+  );
+
+  // PALM
+  /**
+   *  translateY by height units
+   *  rotateZ by gJoint1angleUnits
+   *  scale along x-z plane by 0.3 units each
+   *  drawBox
+   */
+
+  const palmHeight = 1.5;
+  gModelMatrix.translate(0.0, arm2Length * vertextBoxHeight, 0.0);
+  gModelMatrix.rotate(gJoint2Angle, 0.0, 0.0, 1.0);
+
+  drawBox(
+    gl,
+    n,
+    1.8,
+    palmHeight,
+    1.8,
+    ViewProjMatrix,
+    MVPMatrixLocation,
+    NormalMatrixLocation
+  );
+
+  // FINGER 1
+  /**
+   *  translateY by height units
+   *  rotateZ by gJoint1angleUnits
+   *  scale along x-z plane by 0.3 units each
+   *  drawBox
+   */
+
+  const fingerHeight = 1.2;
+  pushModelMat(gModelMatrix);
+
+  gModelMatrix.translate(0.0, palmHeight * vertextBoxHeight, 2.0);
+  gModelMatrix.rotate(gJoint3Angle, 0.0, 0.0, 1.0);
+
+  drawBox(
+    gl,
+    n,
+    1.1,
+    fingerHeight,
+    1.1,
+    ViewProjMatrix,
+    MVPMatrixLocation,
+    NormalMatrixLocation
+  );
+
+  gModelMatrix = popModelMat();
+
+  // FINGER 2
+  /**
+   *  translateY by height units
+   *  rotateZ by gJoint1angleUnits
+   *  scale along x-z plane by 0.3 units each
+   *  drawBox
+   */
+
+  gModelMatrix.translate(0.0, palmHeight * vertextBoxHeight, -2.0);
+  gModelMatrix.rotate(-gJoint3Angle, 0.0, 0.0, 1.0);
+
+  drawBox(
+    gl,
+    n,
+    1.1,
+    fingerHeight,
+    1.1,
+    ViewProjMatrix,
+    MVPMatrixLocation,
+    NormalMatrixLocation
+  );
+
+  // pushModelMat(gModelMatrix);
+}
+
+function pushModelMat(o: Matrix4) {
+  const m = new Matrix4(o);
+  gModelMatStack.push(m);
+}
+
+function popModelMat(): Matrix4 {
+  return gModelMatStack.pop() as Matrix4;
 }
 
 function drawBox(
   gl: WebGLRenderingContext,
   n: number,
+  width: number,
+  height: number,
+  depth: number,
   ViewProjMatrix: Matrix4,
   MVPMatrixLocation: WebGLUniformLocation,
   NormalMatrixLocation: WebGLUniformLocation
 ) {
+  gModelMatrix.scale(0.8, 0.8, 0.8);
+  pushModelMat(gModelMatrix);
+  gModelMatrix.scale(width, height, depth);
   gMVPMatrix.set(ViewProjMatrix);
   gMVPMatrix.multiply(gModelMatrix);
 
@@ -293,16 +448,21 @@ function drawBox(
   gl.uniformMatrix4fv(NormalMatrixLocation, false, gNormalMatrix.elements);
 
   gl.drawElements(gl.TRIANGLES, n, gl.UNSIGNED_BYTE, 0.0);
+
+  gModelMatrix = popModelMat();
 }
 
-const gModelMatrix = new Matrix4(),
+let gModelMatrix = new Matrix4(),
   gNormalMatrix = new Matrix4(),
   gMVPMatrix = new Matrix4();
 
-let gJoint1Angle = 45.0;
+const gModelMatStack: Matrix4[] = [];
+
+let gJoint1Angle = 25.0;
 let gArm1Angle = 0.0;
 let gJoint2Angle = 0.0;
-let gJoint3Angle = 0.0;
+let gJoint3Angle = 4.0;
+
 const ANGLE_STEP = 3.0;
 
 //prettier-ignore
