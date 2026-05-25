@@ -47,7 +47,7 @@
         lightDirection = normalize(u_LightDirection);
         cosTheta = max(dot(normal.xyz, lightDirection), 0.0);
 
-        color = (face != u_Picked) ? (a_Color.rgb * u_LightColor) * cosTheta : vec3(1.0);
+        color = (face != u_Picked) ? (a_Color.rgb * u_LightColor) * cosTheta : ((a_Color.rgb * u_LightColor) * cosTheta) / 5.0;
 
         if (u_Picked == 0) {
           v_Color = vec4(color, a_Face/255.0);

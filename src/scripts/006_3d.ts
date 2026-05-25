@@ -186,19 +186,19 @@ function initVertexBuffers(
 
   //prettier-ignore
   const faces = new Uint8Array([
-    1, 1, 1,      1, 1, 1,
-    2, 2, 2,      2, 2, 2,
-    3, 3, 3,      3, 3, 3,
-    4, 4, 4,      4, 4, 4,
-    5, 5, 5,      5, 5, 5,
-    6, 6, 6,      6, 6, 6,
+    1, 1, 1, 1,
+    2, 2, 2, 2,
+    3, 3, 3, 3,
+    4, 4, 4, 4,
+    5, 5, 5, 5,
+    6, 6, 6, 6,
   ])
 
   // Write the vertex property to buffers (coordinates and normals)
   if (!initArrayBuffer(gl, vertices, 3, gl.FLOAT, positionLocation)) return -1;
   if (!initArrayBuffer(gl, colors, 3, gl.FLOAT, colorLocation)) return -1;
   if (!initArrayBuffer(gl, normals, 3, gl.FLOAT, NormLocation)) return -1;
-  if (!initArrayBuffer(gl, faces, 3, gl.UNSIGNED_BYTE, faceLocation)) return -1;
+  if (!initArrayBuffer(gl, faces, 1, gl.UNSIGNED_BYTE, faceLocation)) return -1;
 
   // Unbind the buffer object
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
@@ -524,7 +524,7 @@ function runRobotArmRender(canvas: HTMLCanvasElement, gl: WebGLRenderingContext)
 
   const n = initVertexBuffers(gl, a_Position, a_Color, a_Norm, a_Face);
 
-    let face = -1;
+  let face = -1;
 
   //prettier-ignore
   if (n < 0) { console.error("invalid vertex count returned from buffer initialization!"); return false; }
@@ -576,8 +576,6 @@ function pickFace(
 
   res = pixels[3] ?? -1;
 
-  // console.log("resulting picked face is ", res);
-
   return res;
 }
 
@@ -601,6 +599,10 @@ function run() {
   if (!shaderInitSuccess) return;
   gl.clearColor(0.0, 0.0, 0.0, 1.0);
   gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.POLYGON_OFFSET_FILL);
+  gl.enable(gl.BLEND);
+
+  gl.blendFunc(gl.DST_ALPHA, gl.ONE_MINUS_DST_ALPHA);
 
   renderStatus = runRobotArmRender(canvas, gl);
 
