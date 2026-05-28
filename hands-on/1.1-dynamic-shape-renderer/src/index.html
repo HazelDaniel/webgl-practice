@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="WebGL Dynamic Shape Renderer — Practice project for buffers, shaders, draw calls, and uniforms.">
+  <title>1.1 — Dynamic Shape Renderer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+  <header class="app-header">
+    <div class="header-left">
+      <span class="header-badge">1.1</span>
+      <h1>Dynamic Shape Renderer</h1>
+    </div>
+    <p class="header-subtitle">Buffers · Shaders · Draw Calls · Uniforms</p>
+  </header>
+
+  <main class="app-main">
+    <!-- WebGL Canvas -->
+    <section class="canvas-container">
+      <canvas id="glCanvas" width="800" height="600"></canvas>
+      <div class="canvas-overlay" id="canvasOverlay">
+        <span class="fps-counter" id="fpsCounter">60 FPS</span>
+      </div>
+    </section>
+
+    <!-- Controls Panel -->
+    <aside class="controls-panel">
+      <div class="panel-header">
+        <h2>Controls</h2>
+        <button class="btn-reset" id="btnReset" title="Reset all values">↺ Reset</button>
+      </div>
+
+      <!-- Shape Selector -->
+      <fieldset class="control-group">
+        <legend>Shape</legend>
+        <div class="shape-selector" id="shapeSelector">
+          <button class="shape-btn active" data-shape="triangle" id="btnTriangle">
+            <svg viewBox="0 0 24 24" width="20" height="20"><polygon points="12,3 22,21 2,21" fill="currentColor"/></svg>
+            <span>Triangle</span>
+          </button>
+          <button class="shape-btn" data-shape="quad" id="btnQuad">
+            <svg viewBox="0 0 24 24" width="20" height="20"><rect x="3" y="3" width="18" height="18" fill="currentColor"/></svg>
+            <span>Quad</span>
+          </button>
+          <button class="shape-btn" data-shape="circle" id="btnCircle">
+            <svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="10" fill="currentColor"/></svg>
+            <span>Circle</span>
+          </button>
+          <button class="shape-btn" data-shape="star" id="btnStar">
+            <svg viewBox="0 0 24 24" width="20" height="20"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="currentColor"/></svg>
+            <span>Star</span>
+          </button>
+        </div>
+      </fieldset>
+
+      <!-- Position -->
+      <fieldset class="control-group">
+        <legend>Position</legend>
+        <div class="slider-row">
+          <label for="posX">X</label>
+          <input type="range" id="posX" min="-1" max="1" step="0.01" value="0">
+          <output id="posXVal">0.00</output>
+        </div>
+        <div class="slider-row">
+          <label for="posY">Y</label>
+          <input type="range" id="posY" min="-1" max="1" step="0.01" value="0">
+          <output id="posYVal">0.00</output>
+        </div>
+      </fieldset>
+
+      <!-- Scale & Rotation -->
+      <fieldset class="control-group">
+        <legend>Transform</legend>
+        <div class="slider-row">
+          <label for="scale">Scale</label>
+          <input type="range" id="scale" min="0.1" max="2.0" step="0.01" value="0.5">
+          <output id="scaleVal">0.50</output>
+        </div>
+        <div class="slider-row">
+          <label for="rotation">Rotate</label>
+          <input type="range" id="rotation" min="0" max="360" step="1" value="0">
+          <output id="rotationVal">0°</output>
+        </div>
+      </fieldset>
+
+      <!-- Color -->
+      <fieldset class="control-group">
+        <legend>Color</legend>
+        <div class="color-preview-row">
+          <div class="color-swatch" id="colorSwatch"></div>
+          <span class="color-hex" id="colorHex">#4A90D9</span>
+        </div>
+        <div class="slider-row slider-red">
+          <label for="colorR">R</label>
+          <input type="range" id="colorR" min="0" max="1" step="0.01" value="0.29">
+          <output id="colorRVal">0.29</output>
+        </div>
+        <div class="slider-row slider-green">
+          <label for="colorG">G</label>
+          <input type="range" id="colorG" min="0" max="1" step="0.01" value="0.56">
+          <output id="colorGVal">0.56</output>
+        </div>
+        <div class="slider-row slider-blue">
+          <label for="colorB">B</label>
+          <input type="range" id="colorB" min="0" max="1" step="0.01" value="0.85">
+          <output id="colorBVal">0.85</output>
+        </div>
+        <div class="slider-row slider-alpha">
+          <label for="colorA">A</label>
+          <input type="range" id="colorA" min="0" max="1" step="0.01" value="1.0">
+          <output id="colorAVal">1.00</output>
+        </div>
+      </fieldset>
+
+      <!-- Background -->
+      <fieldset class="control-group">
+        <legend>Background</legend>
+        <div class="slider-row">
+          <label for="bgBright">Bright</label>
+          <input type="range" id="bgBright" min="0" max="1" step="0.01" value="0.08">
+          <output id="bgBrightVal">0.08</output>
+        </div>
+        <label class="toggle-row">
+          <input type="checkbox" id="showGrid" checked>
+          <span class="toggle-label">Show Grid</span>
+        </label>
+      </fieldset>
+
+      <!-- Draw Mode -->
+      <fieldset class="control-group">
+        <legend>Draw Mode</legend>
+        <div class="draw-mode-selector" id="drawModeSelector">
+          <button class="mode-btn active" data-mode="filled" id="btnFilled">Filled</button>
+          <button class="mode-btn" data-mode="wireframe" id="btnWireframe">Wireframe</button>
+          <button class="mode-btn" data-mode="points" id="btnPoints">Points</button>
+        </div>
+        <div class="slider-row" id="pointSizeRow" style="display:none;">
+          <label for="pointSize">Pt Size</label>
+          <input type="range" id="pointSize" min="1" max="20" step="0.5" value="4">
+          <output id="pointSizeVal">4.0</output>
+        </div>
+        <div class="slider-row" id="segmentsRow">
+          <label for="segments">Segments</label>
+          <input type="range" id="segments" min="3" max="128" step="1" value="32">
+          <output id="segmentsVal">32</output>
+        </div>
+      </fieldset>
+    </aside>
+  </main>
+
+  <!-- Vertex Shader -->
+  <script id="vertex-shader" type="x-shader/x-vertex">
+    attribute vec2 a_Position;
+
+    uniform vec2 u_Translation;
+    uniform float u_Scale;
+    uniform float u_Rotation; // in radians
+    uniform float u_PointSize;
+
+    void main() {
+      // Rotation matrix
+      float cosR = cos(u_Rotation);
+      float sinR = sin(u_Rotation);
+      mat2 rotationMatrix = mat2(
+        cosR, -sinR,
+        sinR,  cosR
+      );
+
+      // Apply scale, then rotation, then translation
+      vec2 transformed = rotationMatrix * (a_Position * u_Scale) + u_Translation;
+
+      gl_Position = vec4(transformed, 0.0, 1.0);
+      gl_PointSize = u_PointSize;
+    }
+  </script>
+
+  <!-- Fragment Shader -->
+  <script id="fragment-shader" type="x-shader/x-fragment">
+    precision mediump float;
+
+    uniform vec4 u_Color;
+
+    void main() {
+      gl_FragColor = u_Color;
+    }
+  </script>
+
+  <!-- Grid Vertex Shader -->
+  <script id="grid-vertex-shader" type="x-shader/x-vertex">
+    attribute vec2 a_Position;
+
+    void main() {
+      gl_Position = vec4(a_Position, 0.0, 1.0);
+    }
+  </script>
+
+  <!-- Grid Fragment Shader -->
+  <script id="grid-fragment-shader" type="x-shader/x-fragment">
+    precision mediump float;
+
+    uniform vec4 u_Color;
+
+    void main() {
+      gl_FragColor = u_Color;
+    }
+  </script>
+
+  <!-- Load the compiled module script from dist directory -->
+  <script src="../dist/main.js" type="module"></script>
+</body>
+</html>

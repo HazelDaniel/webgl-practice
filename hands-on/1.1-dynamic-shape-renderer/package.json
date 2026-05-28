@@ -1,0 +1,14 @@
+{
+  "name": "1.1-dynamic-shape-renderer",
+  "version": "1.0.0",
+  "description": "WebGL Dynamic Shape Renderer using TypeScript",
+  "scripts": {
+    "dev": "concurrently -k 'tsc --watch'",
+    "start:dev": "concurrently -k 'pnpm dev' 'lite-server .'"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "lite-server": "^2.6.1",
+    "typescript": "^6.0.3"
+  }
+}
