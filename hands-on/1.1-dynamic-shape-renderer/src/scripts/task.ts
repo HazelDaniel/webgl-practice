@@ -442,31 +442,7 @@ function setupControls(
       if (typeof state[stateKey] === "boolean") {
         (state as any)[stateKey] = input.value === "true";
       } else {
-        switch (stateKey) {
-          case "posX": {
-            (state as any)[stateKey] = val;
-            state.rotation = val;
-            break;
-          }
-          case "posY": {
-            (state as any)[stateKey] = val;
-            state.posY = val;
-            break;
-          }
-          case "scale": {
-            (state as any)[stateKey] = val;
-            state.scale = val;
-            break;
-          }
-          case "rotation": {
-            (state as any)[stateKey] = val;
-            state.rotation = val;
-            break;
-          }
-          default: {
-            (state as any)[stateKey] = val;
-          }
-        }
+        (state as any)[stateKey] = val;
       }
       output.textContent = format(input.value);
 
