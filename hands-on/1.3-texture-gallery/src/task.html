@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="WebGL Texture Gallery — Side-by-side filtering, wrapping, and multi-texturing sandbox."
+    />
+    <title>1.3 — Texture Gallery</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="index.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="header-left">
+        <span class="header-badge">1.3</span>
+        <h1>WebGL Texture Gallery</h1>
+      </div>
+      <p class="header-subtitle">
+        UVs · Filtering · Wrapping · Multi-Texturing
+      </p>
+    </header>
+
+    <main class="app-main">
+      <!-- Visual Comparison Viewer -->
+      <section class="viewer-container">
+        <div class="canvas-panel">
+          <span class="canvas-title">Left View: Standard Scene</span>
+          <canvas
+            id="canvasLeft"
+            class="gl-canvas"
+            width="512"
+            height="512"
+          ></canvas>
+        </div>
+        <div class="canvas-panel">
+          <span class="canvas-title" id="rightCanvasTitle"
+            >Right View: 8x Zoomed Inspection</span
+          >
+          <canvas
+            id="canvasRight"
+            class="gl-canvas"
+            width="512"
+            height="512"
+          ></canvas>
+        </div>
+      </section>
+
+      <!-- Controls Panel -->
+      <aside class="controls-panel">
+        <div class="panel-header">
+          <h2>Gallery Settings</h2>
+          <button class="btn-reset" id="btnReset" title="Reset all settings">
+            ↺ Reset
+          </button>
+        </div>
+
+        <!-- Texture Sources -->
+        <fieldset class="control-group">
+          <legend>Texture Selection</legend>
+          <div class="select-row">
+            <label for="texSelect1">Base Layer (Texture 1)</label>
+            <select id="texSelect1" class="select-control">
+              <option value="checkerboard" selected>
+                Procedural Checkerboard (Pink/Black)
+              </option>
+              <option value="stripes">
+                Procedural Tech Stripes (Teal/Blue)
+              </option>
+              <option value="huey">Uploaded Image: Huey (huey2.jpg)</option>
+            </select>
+          </div>
+          <div class="select-row">
+            <label for="texSelect2">Overlay Layer (Texture 2)</label>
+            <select id="texSelect2" class="select-control">
+              <option value="stripes" selected>
+                Procedural Tech Stripes (Teal/Blue)
+              </option>
+              <option value="checkerboard">
+                Procedural Checkerboard (Pink/Black)
+              </option>
+              <option value="huey">Uploaded Image: Huey (huey2.jpg)</option>
+            </select>
+          </div>
+          <div class="slider-row">
+            <label for="blendFactor">Mix</label>
+            <input
+              type="range"
+              id="blendFactor"
+              min="0"
+              max="1"
+              step="0.01"
+              value="0.00"
+            />
+            <output id="blendFactorVal">0.00</output>
+          </div>
+          <!-- Dynamic Image Upload Form -->
+          <form
+            id="uploadForm"
+            class="select-row"
+            style="
+              margin-top: 12px;
+              border-top: 1px solid var(--border-subtle);
+              padding-top: 12px;
+            "
+            method="POST"
+          >
+            <label for="imageUpload">Upload Custom Texture</label>
+            <div
+              style="
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                align-items: center;
+                margin-top: 4px;
+              "
+            >
+              <input
+                type="file"
+                id="imageUpload"
+                accept="image/png, image/jpeg, image/jpg"
+                class="select-control"
+                style="flex: 1; padding: 4px; font-size: 0.75rem"
+                required
+              />
+
+              <div
+                style="
+                  display: flex;
+                  gap: 2em;
+                  accent-color: var(--text-accent);
+                "
+              >
+                <span>
+                  <input
+                    type="radio"
+                    name="texture"
+                    id="tex-1"
+                    checked
+                    class="tex-radio"
+                  />
+                  <label for="tex-1">texture 1</label>
+                </span>
+
+                <span>
+                  <input
+                    type="radio"
+                    name="texture"
+                    id="tex-2"
+                    class="tex-radio"
+                  />
+                  <label for="tex-1">texture 2</label>
+                </span>
+              </div>
+
+              <button
+                type="submit"
+                class="btn-reset"
+                style="padding: 6px 12px; height: 32px"
+              >
+                Submit
+              </button>
+            </div>
+          </form>
+        </fieldset>
+
+        <!-- Wrapping Controls -->
+        <fieldset class="control-group">
+          <legend>Wrapping Options</legend>
+          <div class="select-row">
+            <label for="wrapS">Wrap S (Horizontal - U)</label>
+            <select id="wrapS" class="select-control">
+              <option value="CLAMP_TO_EDGE" selected>CLAMP_TO_EDGE</option>
+              <option value="REPEAT">REPEAT</option>
+              <option value="MIRRORED_REPEAT">MIRRORED_REPEAT</option>
+            </select>
+          </div>
+          <div class="select-row">
+            <label for="wrapT">Wrap T (Vertical - V)</label>
+            <select id="wrapT" class="select-control">
+              <option value="CLAMP_TO_EDGE" selected>CLAMP_TO_EDGE</option>
+              <option value="REPEAT">REPEAT</option>
+              <option value="MIRRORED_REPEAT">MIRRORED_REPEAT</option>
+            </select>
+          </div>
+          <div class="slider-row">
+            <label for="uvScale">UV Scale</label>
+            <input
+              type="range"
+              id="uvScale"
+              min="0.1"
+              max="10.0"
+              step="0.1"
+              value="3.0"
+            />
+            <output id="uvScaleVal">3.00</output>
+          </div>
+        </fieldset>
+
+        <!-- Filtering Controls -->
+        <fieldset class="control-group">
+          <legend>Filtering Options</legend>
+
+          <div class="select-row">
+            <label for="magFilter">Mag Filter (Zoomed In)</label>
+            <select id="magFilter" class="select-control">
+              <option value="NEAREST">NEAREST (Pixelated)</option>
+              <option value="LINEAR" selected>LINEAR (Smooth blur)</option>
+            </select>
+          </div>
+
+          <div class="select-row">
+            <label for="minFilter">Min Filter (Zoomed Out / Mipmaps)</label>
+            <select id="minFilter" class="select-control">
+              <option value="NEAREST">NEAREST</option>
+              <option value="LINEAR" selected>LINEAR</option>
+              <option value="NEAREST_MIPMAP_NEAREST">
+                NEAREST_MIPMAP_NEAREST
+              </option>
+              <option value="LINEAR_MIPMAP_NEAREST">
+                LINEAR_MIPMAP_NEAREST
+              </option>
+              <option value="NEAREST_MIPMAP_LINEAR">
+                NEAREST_MIPMAP_LINEAR
+              </option>
+              <option value="LINEAR_MIPMAP_LINEAR">
+                LINEAR_MIPMAP_LINEAR (Trilinear)
+              </option>
+            </select>
+          </div>
+
+          <label class="toggle-row">
+            <input type="checkbox" id="generateMipmaps" checked />
+            <span class="toggle-label">Auto-generate Mipmaps</span>
+          </label>
+        </fieldset>
+
+        <!-- Technical Statistics -->
+        <fieldset class="control-group">
+          <legend>Technical Specs</legend>
+          <div class="info-panel">
+            <div class="info-item">
+              <span class="info-label">Texture Size:</span>
+              <span class="info-val">512 x 512 px</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Mips Active:</span>
+              <span class="info-val" id="mipsActiveDisplay">Yes</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Canvas Context:</span>
+              <span class="info-val">WebGL 1.0</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Active Units:</span>
+              <span class="info-val">Unit 0 & Unit 1</span>
+            </div>
+          </div>
+        </fieldset>
+      </aside>
+    </main>
+
+    <!-- Vertex Shader -->
+    <script id="vertex-shader" type="x-shader/x-vertex">
+      attribute vec2 a_Position;
+      attribute vec2 a_TexCoord;
+
+      uniform float u_UVScale;
+
+      varying vec2 v_TexCoord;
+
+      void main() {
+        gl_Position = vec4(a_Position, 0.0, 1.0);
+
+        // Pass coordinates scaled to demonstrate wrapping or zoom
+        v_TexCoord = a_TexCoord * u_UVScale;
+      }
+    </script>
+
+    <!-- Fragment Shader -->
+    <script id="fragment-shader" type="x-shader/x-fragment">
+      precision mediump float;
+
+      varying vec2 v_TexCoord;
+
+      uniform sampler2D u_Sampler1;
+      uniform sampler2D u_Sampler2;
+      uniform float u_BlendFactor;
+
+      void main() {
+        vec4 color1 = texture2D(u_Sampler2, v_TexCoord);
+        vec4 color2 = texture2D(u_Sampler1, v_TexCoord);
+
+        // Linear blend between the two textures
+        gl_FragColor = mix(color1, color2, u_BlendFactor);
+      }
+    </script>
+
+    <script src="../dist/task.js" type="module"></script>
+  </body>
+</html>
