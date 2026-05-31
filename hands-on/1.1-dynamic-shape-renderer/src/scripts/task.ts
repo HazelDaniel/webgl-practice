@@ -133,7 +133,7 @@ function generateCircle(segments: number): ShapeGeometry {
 
   for (let i = 0; i <= segments; i++) {
     const ratio = i / segments;
-    const angle = ratio * 2.0 * Math.PI;
+    const angle = ratio * 2.0 * Math.PI - Math.PI / 2; // start at top
     verts[(i + 1) * 2] = Math.cos(angle) * radius; // x
     verts[(i + 1) * 2 + 1] = Math.sin(angle) * radius; // y
   }
@@ -308,6 +308,8 @@ function main(): void {
 
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  resizeDisplaytoScreenSize();
+  gl.viewport(0, 0, canvas.width, canvas.height);
 
   setupControls(gl, shapeBuffers, shapeMeta);
 
@@ -371,6 +373,22 @@ function syncGModelMatrixState() {
   gModelMat.setTranslate(state.posX, state.posY, 0.0);
   gModelMat.scale(state.scale, state.scale, 1.0);
   gModelMat.rotate(state.rotation, 0.0, 0.0, 1.0);
+}
+
+function resizeDisplaytoScreenSize() {
+  const canvas = document.getElementById(
+    "glCanvas"
+  ) as HTMLCanvasElement | null;
+  if (!canvas) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const width = Math.floor(canvas.clientWidth * dpr);
+  const height = Math.floor(canvas.clientHeight * dpr);
+
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
 }
 
 // ─── UI Controls Setup ────────────────────────────────────────

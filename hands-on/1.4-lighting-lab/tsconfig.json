@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "rootDir": "./src/scripts",
+    "outDir": "./dist",
+    "module": "esnext",
+    "target": "esnext",
+    "types": [],
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "strict": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "moduleDetection": "force"
+  },
+  "include": [
+    "src/scripts/**/*.ts",
+    "../../lib/types.d.ts"
+  ]
+}
