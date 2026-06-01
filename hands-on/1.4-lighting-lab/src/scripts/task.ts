@@ -15,6 +15,7 @@ interface AppState {
   shape: ShapeType;
   shadingModel: ShadingModelType;
   showNormals: boolean;
+  normalsOnly: boolean;
 
   // Material
   matR: number;
@@ -78,6 +79,7 @@ const state: AppState = {
   shape: "cube",
   shadingModel: "gouraud",
   showNormals: false,
+  normalsOnly: false,
 
   // Material (Ruby Pinkish-Red)
   matR: 0.88,
@@ -217,44 +219,39 @@ function generateNormalVisualizerLines(
  * Generate a procedural sphere mesh using latitude/longitude parametric parametrization.
  */
 function generateSphere(latSegments = 30, lonSegments = 30): GeometryMesh {
-  const radius = 0.6;
+  const radius = 0.7;
   const positions: number[] = [];
   const normals: number[] = [];
   const indices: number[] = [];
 
-  // Generate vertices & normals
+  let x = 0,
+    y = 0,
+    z = 0;
+
   for (let lat = 0; lat <= latSegments; lat++) {
     const theta = (lat * Math.PI) / latSegments;
 
-    const sinTheta = Math.sin(theta);
-    const cosTheta = Math.cos(theta);
+    y = Math.cos(theta);
 
     for (let lon = 0; lon <= lonSegments; lon++) {
-      const phi = (lon * 2 * Math.PI) / lonSegments;
-      const sinPhi = Math.sin(phi);
-      const cosPhi = Math.cos(phi);
+      const phi = (lon * Math.PI * 2) / lonSegments;
 
-      const x = cosPhi * sinTheta;
-      const y = cosTheta;
-      const z = sinPhi * sinTheta;
+      x = Math.sin(theta) * Math.cos(phi);
+      z = Math.sin(theta) * Math.sin(phi);
 
-      // Position (scaled by radius)
       positions.push(x * radius, y * radius, z * radius);
 
-      // Normal vector (equal to raw sphere coordinates for unit sphere)
       normals.push(x, y, z);
     }
   }
 
-  // Generate indices (indexed triangles)
   for (let lat = 0; lat < latSegments; lat++) {
     for (let lon = 0; lon < lonSegments; lon++) {
-      const first = lat * (lonSegments + 1) + lon;
-      const second = first + lonSegments + 1;
+      let first = lat * (lonSegments + 1) + lon;
+      let second = first + (lonSegments + 1);
 
-      // Two triangles per grid quad
-      indices.push(first, second, first + 1);
-      indices.push(second, second + 1, first + 1);
+      indices.push(first, first + 1, second);
+      indices.push(first + 1, second, second + 1);
     }
   }
 
@@ -415,6 +412,23 @@ function setupUI(): void {
     });
   }
 
+  // Normals Only checkbox
+  const normalsOnlyCheckbox = document.getElementById(
+    "normalsOnly"
+  ) as HTMLInputElement | null;
+  if (normalsOnlyCheckbox) {
+    normalsOnlyCheckbox.addEventListener("change", (e) => {
+      const checked = (e.target as HTMLInputElement).checked;
+      state.normalsOnly = checked;
+      if (checked) {
+        state.showNormals = true;
+        if (normalsCheckbox) {
+          normalsCheckbox.checked = true;
+        }
+      }
+    });
+  }
+
   // Light enables
   bindCheckbox("dirLightEnabled", "dirLightEnabled");
   bindCheckbox("pointLightEnabled", "pointLightEnabled");
@@ -468,6 +482,8 @@ function setupUI(): void {
         if (modelDisplay) modelDisplay.textContent = "Phong Shading";
       }
       if (normalsCheckbox) normalsCheckbox.checked = defaults.showNormals;
+      if (normalsOnlyCheckbox)
+        normalsOnlyCheckbox.checked = defaults.normalsOnly;
 
       // Update checkboxes
       setCheckState("dirLightEnabled", defaults.dirLightEnabled);
@@ -816,7 +832,10 @@ function main() {
         state.ambientB * state.ambientIntensity,
       ]);
 
-      gl.uniform3fv(currentShadingLocation.u_AmbientLight, ambientLightColor.elements);
+      gl.uniform3fv(
+        currentShadingLocation.u_AmbientLight,
+        ambientLightColor.elements
+      );
 
       // gl.uniform3fv(currentShadingLocation.u_EyePos, eyePosition.elements);
 
@@ -911,7 +930,8 @@ function main() {
       //prettier-ignore
       gl.uniformMatrix4fv(currentShadingLocation.u_NormalMatrix, false, gNormalMat.elements);
 
-      gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+      if (!state.normalsOnly)
+        gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
 
       if (state.showNormals) {
         gl.useProgram(flatProgram);
