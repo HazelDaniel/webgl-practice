@@ -205,3 +205,52 @@ button:disabled {
 .hidden {
   display: none !important;
 }
+
+.settings-group {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.settings-group label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+#bg-color-picker {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 30px;
+  height: 30px;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+#bg-color-picker::-webkit-color-swatch {
+  border-radius: 4px;
+  border: 1px solid var(--glass-border);
+}
+
+#theme-selector {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+  outline: none;
+}
+#theme-selector:focus {
+  border-color: var(--border-focus);
+}
+#theme-selector option {
+  background: var(--bg-elevated);
+  color: var(--text-main);
+}

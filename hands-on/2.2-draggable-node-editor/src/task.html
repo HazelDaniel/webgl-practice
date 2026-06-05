@@ -16,13 +16,13 @@
     </style>
   </head>
   <body>
-    <header class="app-header">
+    <!-- <header class="app-header">
       <div class="header-left">
         <span class="header-badge">2.2</span>
         <h1>Draggable 2d Node Editor</h1>
       </div>
       <p class="header-subtitle">Create · Drag · Delete</p>
-    </header>
+    </header> -->
 
     <!-- WebGL Canvas -->
     <canvas id="webgl-canvas"></canvas>
@@ -33,6 +33,21 @@
     <!-- UI Overlay -->
     <div class="ui-container" id="controls-container">
       <div class="ui-title">Node Editor</div>
+      
+      <div class="settings-group">
+        <label for="bg-color-picker">Canvas Color</label>
+        <input type="color" id="bg-color-picker" value="#0f172a" />
+      </div>
+
+      <div class="settings-group">
+        <label for="theme-selector">Node Theme</label>
+        <select id="theme-selector">
+          <option value="dark">Dark (Glass)</option>
+          <option value="light">Light</option>
+          <option value="neon">Neon</option>
+        </select>
+      </div>
+
       <div class="controls">
         <button id="btn-add-node" class="primary">+ Add Node</button>
         <button id="btn-delete-node" class="danger" disabled>
@@ -45,10 +60,11 @@
       attribute vec4 a_Position;
       attribute vec2 a_TexCoord;
       uniform mat4 u_ModelMatrix;
+      uniform mat4 u_ViewMatrix;
       uniform mat4 u_ProjMatrix;
       varying vec2 v_TexCoord;
       void main() {
-        gl_Position = u_ProjMatrix * u_ModelMatrix * a_Position;
+        gl_Position = u_ProjMatrix * u_ViewMatrix * u_ModelMatrix * a_Position;
         v_TexCoord = a_TexCoord;
       }
     </script>
