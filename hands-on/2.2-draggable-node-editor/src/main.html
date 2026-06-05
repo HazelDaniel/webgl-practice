@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>2.2 — Draggable 2D Node Editor</title>
+    <link rel="stylesheet" href="index.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <script src="../../lib/cuon-matrix.js"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="header-left">
+        <span class="header-badge">2.2</span>
+        <h1>Draggable 2d Node Editor</h1>
+      </div>
+      <p class="header-subtitle">Create · Drag · Delete</p>
+    </header>
+
+    <!-- WebGL Canvas -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- Hidden 2D Canvas for Text to Texture generation -->
+    <canvas id="text-canvas" class="hidden"></canvas>
+
+    <!-- UI Overlay -->
+    <div class="ui-container">
+      <div class="ui-title">Node Editor</div>
+      <div class="controls">
+        <button id="btn-add-node" class="primary">+ Add Node</button>
+        <button id="btn-delete-node" class="danger" disabled>
+          🗑️ Delete Selected
+        </button>
+      </div>
+    </div>
+
+    <script type="module" src="../dist/scripts/main.js"></script>
+  </body>
+</html>

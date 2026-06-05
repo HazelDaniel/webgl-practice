@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ES6",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "noImplicitAny": true,
+    "sourceMap": true,
+    "typeRoots": [
+      "../../lib"
+    ]
+  },
+  "include": [
+    "src/**/*",
+    "../../lib/types.d.ts"
+  ]
+}

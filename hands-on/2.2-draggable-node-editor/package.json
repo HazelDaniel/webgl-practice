@@ -1,0 +1,13 @@
+{
+  "name": "2.2-draggable-node-editor",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "lite-server -c ../../bs-config.json",
+    "build": "tsc",
+    "start:dev": "tsc -w & npm start"
+  },
+  "devDependencies": {
+    "lite-server": "^2.6.1",
+    "typescript": "^5.0.4"
+  }
+}

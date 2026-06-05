@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>2.2 — Draggable 2D Node Editor</title>
+    <link rel="stylesheet" href="index.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <script src="../../lib/cuon-matrix.js"></script>
+
+    <script type="module" src="../dist/scripts/task.js"></script>
+    <style>
+    </style>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="header-left">
+        <span class="header-badge">2.2</span>
+        <h1>Draggable 2d Node Editor</h1>
+      </div>
+      <p class="header-subtitle">Create · Drag · Delete</p>
+    </header>
+
+    <!-- WebGL Canvas -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- Hidden 2D Canvas for Text to Texture generation -->
+    <canvas id="2d-text-canvas" class="hidden"></canvas>
+
+    <!-- UI Overlay -->
+    <div class="ui-container" id="controls-container">
+      <div class="ui-title">Node Editor</div>
+      <div class="controls">
+        <button id="btn-add-node" class="primary">+ Add Node</button>
+        <button id="btn-delete-node" class="danger" disabled>
+          🗑️ Delete Selected
+        </button>
+      </div>
+    </div>
+
+    <script type="x-shader/vertex" id="v-shader">
+      attribute vec4 a_Position;
+      attribute vec2 a_TexCoord;
+      uniform mat4 u_ModelMatrix;
+      uniform mat4 u_ProjMatrix;
+      varying vec2 v_TexCoord;
+      void main() {
+        gl_Position = u_ProjMatrix * u_ModelMatrix * a_Position;
+        v_TexCoord = a_TexCoord;
+      }
+    </script>
+
+    <script type="x-shader/fragment" id="f-shader">
+      precision mediump float;
+      varying vec2 v_TexCoord;
+      uniform sampler2D u_Sampler;
+      uniform bool u_UseTexture;
+      uniform vec4 u_Color;
+      void main() {
+        if (u_UseTexture) {
+          vec4 texColor = texture2D(u_Sampler, v_TexCoord);
+          gl_FragColor = texColor;
+        } else {
+          gl_FragColor = u_Color;
+        }
+      }
+    </script>
+
+  </body>
+</html>
