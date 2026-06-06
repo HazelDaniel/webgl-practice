@@ -1,4 +1,4 @@
-import { NodeData, ThemeName, NodeType } from './types.js';
+import { NodeData, ThemeName, NodeType, NODE_LAYOUT } from './types.js';
 import { GeometryNode }        from './geometry.js';
 import { createProgram, getShaderLocations } from './shader.js';
 import { PickFBO }             from './pick-fbo.js';
@@ -173,15 +173,49 @@ export class NodeEditor {
     }
 
     this.controls.enableDelete();
+    
+    // Store click coordinates relative to node origin
+    const { x: worldX, y: worldY } = this.camera.screenToWorld(screenX, screenY);
+    const nodeWorld = getWorldPosition(node.id, this.store.allNodesMap);
+    const localClickX = worldX - nodeWorld.x;
+    const localClickY = worldY - nodeWorld.y;
+
+    // Check for close icon (✕) click (distance-based hit-test)
+    const closeX = node.width - NODE_LAYOUT.closeBtnPaddingRight;
+    const closeY = NODE_LAYOUT.headerHeight / 2;
+    const cDx = localClickX - closeX;
+    const cDy = localClickY - closeY;
+    if (cDx * cDx + cDy * cDy <= NODE_LAYOUT.closeBtnClickRadius * NODE_LAYOUT.closeBtnClickRadius) {
+      const oldParentId = node.parentId;
+      this.store.remove(node.id);
+      this.controls.disableDelete();
+      if (oldParentId !== null) {
+        this.store.updateGroupBounds(oldParentId, this.theme);
+      }
+      return;
+    }
+
+    // Check for plus icon (+) click (groups only, distance-based hit-test)
+    if (node.nodeType === 'group') {
+      const plusX = node.width / 2;
+      const plusY = node.height - NODE_LAYOUT.plusBtnPaddingBottom;
+      const pDx = localClickX - plusX;
+      const pDy = localClickY - plusY;
+      if (pDx * pDx + pDy * pDy <= NODE_LAYOUT.plusBtnClickRadius * NODE_LAYOUT.plusBtnClickRadius) {
+        const child = this.store.add(0, 0, `Node ${this.store.nextNodeId}`, this.theme, 'node');
+        const success = this.store.setParent(child.id, node.id);
+        if (success) {
+          this.store.updateGroupBounds(node.id, this.theme);
+        }
+        return;
+      }
+    }
+
     this.store.deselectAll();
     node.isSelected   = true;
     this.draggingNode = node;
-
-    // Store drag offset in world space so the node doesn't snap under the cursor
-    const { x: worldX, y: worldY } = this.camera.screenToWorld(screenX, screenY);
-    const nodeWorld = getWorldPosition(node.id, this.store.allNodesMap);
-    this.dragOffsetX = worldX - nodeWorld.x;
-    this.dragOffsetY = worldY - nodeWorld.y;
+    this.dragOffsetX  = worldX - nodeWorld.x;
+    this.dragOffsetY  = worldY - nodeWorld.y;
   }
 
   private startPan(clientX: number, clientY: number): void {
@@ -232,7 +266,7 @@ export class NodeEditor {
   }
 
   private handleMouseUp(e: MouseEvent, canvas: HTMLCanvasElement): void {
-    this.isPanning    = false;
+    this.isPanning = false;
     
     if (this.draggingNode) {
       if (this.draggingNode.nodeType === 'node') {

@@ -89,13 +89,21 @@ export class NodeStore {
 
     const allNodes = this.allNodesMap;
 
-    // Promote children before removal so reparent() can still find the node
-    const childrenToReparent = [...node.childIds];
-    for (const childId of childrenToReparent) {
-      reparent(childId, node.parentId, allNodes);
-      // Sync the reparented child back into the correct map
-      const child = allNodes.get(childId);
-      if (child) this.syncToMap(child);
+    if (node.nodeType === 'group') {
+      // Cascading deletion: recursively delete children
+      const childrenToRemove = [...node.childIds];
+      for (const childId of childrenToRemove) {
+        this.remove(childId);
+      }
+    } else {
+      // Promote children before removal so reparent() can still find the node
+      const childrenToReparent = [...node.childIds];
+      for (const childId of childrenToReparent) {
+        reparent(childId, node.parentId, allNodes);
+        // Sync the reparented child back into the correct map
+        const child = allNodes.get(childId);
+        if (child) this.syncToMap(child);
+      }
     }
 
     // Detach from parent's childIds list
@@ -174,7 +182,7 @@ export class NodeStore {
 
     const paddingX = 20;
     const paddingY = 50; // top padding for header
-    const paddingBottom = 20;
+    const paddingBottom = 40;
     const gapY = 10;
 
     let totalChildHeight = 0;

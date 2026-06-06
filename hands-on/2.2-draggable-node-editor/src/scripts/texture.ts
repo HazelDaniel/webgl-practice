@@ -1,4 +1,4 @@
-import { ThemeName, NodeType } from './types.js';
+import { ThemeName, NodeType, NODE_LAYOUT } from './types.js';
 
 interface ThemeStyle {
   bgFill: string;
@@ -9,7 +9,7 @@ interface ThemeStyle {
   borderWidth: number;
 }
 
-const THEMES: Record<ThemeName, ThemeStyle> = {
+const NODE_THEMES: Record<ThemeName, ThemeStyle> = {
   dark: {
     bgFill:       'rgba(30, 41, 59, 0.8)',
     borderStroke: 'rgba(255, 255, 255, 0.1)',
@@ -21,6 +21,34 @@ const THEMES: Record<ThemeName, ThemeStyle> = {
   light: {
     bgFill:       'rgba(248, 250, 252, 0.9)',
     borderStroke: 'rgba(0, 0, 0, 0.1)',
+    headerFill:   'rgba(226, 232, 240, 1)',
+    titleFill:    '#0f172a',
+    bodyFill:     '#475569',
+    borderWidth:  1,
+  },
+  neon: {
+    bgFill:       'rgba(10, 10, 20, 0.9)',
+    borderStroke: '#06b6d4',
+    headerFill:   'rgba(6, 182, 212, 0.2)',
+    titleFill:    '#cffafe',
+    bodyFill:     '#67e8f9',
+    borderWidth:  2,
+  },
+};
+
+
+const G_NODE_THEMES: Record<ThemeName, ThemeStyle> = {
+  dark: {
+    bgFill:       'rgba(30, 41, 59, 0.25)',
+    borderStroke: 'rgba(255, 255, 255, 0.35)',
+    headerFill:   'rgba(0, 0, 0, 0.3)',
+    titleFill:    '#f8fafc',
+    bodyFill:     '#94a3b8',
+    borderWidth:  1,
+  },
+  light: {
+    bgFill:       'rgba(248, 250, 252, 0.9)',
+    borderStroke: 'rgba(0, 0, 0, 0.4)',
     headerFill:   'rgba(226, 232, 240, 1)',
     titleFill:    '#0f172a',
     bodyFill:     '#475569',
@@ -53,7 +81,7 @@ export function createTextTexture(
   canvas.width = width;
   canvas.height = height;
 
-  const s = THEMES[theme];
+  const s = nodeType === "group" ? G_NODE_THEMES[theme] : NODE_THEMES[theme];
 
   // Background
   ctx.clearRect(0, 0, width, height);
@@ -74,24 +102,52 @@ export function createTextTexture(
   // Header bar
   ctx.fillStyle = s.headerFill;
   ctx.beginPath();
-  ctx.roundRect(0, 0, width, 30, [8, 8, 0, 0]);
+  ctx.roundRect(0, 0, width, NODE_LAYOUT.headerHeight, [8, 8, 0, 0]);
   ctx.fill();
 
   // Title
   ctx.fillStyle = s.titleFill;
   ctx.font = '600 14px Inter, sans-serif';
   ctx.textBaseline = 'middle';
-  ctx.fillText(text, 10, 15);
+  ctx.fillText(text, 10, NODE_LAYOUT.headerHeight / 2);
 
   // Close icon
   ctx.fillStyle = '#ef4444';
   ctx.font = '14px Inter, sans-serif';
-  ctx.fillText('✕', width - 20, 15);
+  ctx.fillText('✕', width - NODE_LAYOUT.closeBtnPaddingRight, NODE_LAYOUT.headerHeight / 2);
+
+  if (nodeType === 'group') {
+    // Draw "+" plus button at the bottom center
+    const btnX = width / 2;
+    const btnY = height - NODE_LAYOUT.plusBtnPaddingBottom;
+    const btnRadius = NODE_LAYOUT.plusBtnClickRadius;
+
+    // Background circle
+    ctx.fillStyle = theme === 'light' ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.15)';
+    ctx.beginPath();
+    ctx.arc(btnX, btnY, btnRadius, 0, 2 * Math.PI);
+    ctx.fill();
+
+    // Border
+    ctx.strokeStyle = s.borderStroke;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(btnX, btnY, btnRadius, 0, 2 * Math.PI);
+    ctx.stroke();
+
+    // Plus text
+    ctx.fillStyle = s.titleFill;
+    ctx.font = 'bold 16px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('+', btnX, btnY);
+    ctx.textAlign = 'left'; // restore
+  }
 
   // Body hint
   ctx.fillStyle = s.bodyFill;
   ctx.font = '12px Inter, sans-serif';
-  ctx.fillText('Drag to move', 10, 50);
+  if (nodeType === "node") ctx.fillText('Drag to move', 10, 50);
 
   // Upload to WebGL
   const tex = gl.createTexture()!;

@@ -2,6 +2,14 @@ export type ThemeName = 'dark' | 'light' | 'neon';
 export type GeometryMeshType = 'rounded-square';
 export type NodeType = 'node' | 'group';
 
+export const NODE_LAYOUT = {
+  headerHeight: 30,
+  closeBtnPaddingRight: 20,
+  closeBtnClickRadius: 15,
+  plusBtnPaddingBottom: 20,
+  plusBtnClickRadius: 12,
+};
+
 export interface ShaderLocations {
   a_Position: number;
   a_TexCoord: number;

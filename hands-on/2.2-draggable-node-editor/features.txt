@@ -1,0 +1,27 @@
+#MINOR
+- deleting a group node should cascade to children nodes
+- a plus icon at the bottom of a group node to provide a better UX to node creation
+
+
+#MAJOR
+- a computation stack for undo-redo
+- multi-node selection
+- a composition node (can only nest inside of a group node, and can only contain ordinary nodes)
+- texture picker (with preview list) for both group nodes and nodes
+- other primitives like:
+		* node handles
+		* labels (types: group and node)
+		* edges (types: cubic, line, line-curve)
+		* edge labels 
+		* checkboxes (determines whether a node contributes to the business logic - could be useful in things like settings simulator)
+		* edge heads
+		* node buttons (types: functional, inert) (to be displayed on the node header, max 3)
+- handle-to-handle animation of edge labels
+
+
+- EVENT ACTIONS (undoable/redoable):
+	* connection
+	* deletion (node, edge, groupnode)
+	* creation (node, edge, groupnode)
+	* model matrix translation
+	* label update
