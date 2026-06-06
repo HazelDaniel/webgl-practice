@@ -1,4 +1,4 @@
-import { ThemeName } from './types.js';
+import { ThemeName, NodeType } from './types.js';
 
 interface ThemeStyle {
   bgFill: string;
@@ -47,7 +47,8 @@ export function createTextTexture(
   text: string,
   width: number,
   height: number,
-  theme: ThemeName = 'dark'
+  theme: ThemeName = 'dark',
+  nodeType: NodeType = 'node'
 ): WebGLTexture {
   canvas.width = width;
   canvas.height = height;
@@ -57,14 +58,18 @@ export function createTextTexture(
   // Background
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = s.bgFill;
+  if (nodeType === 'group') ctx.globalAlpha = 0.5;
   ctx.beginPath();
   ctx.roundRect(0, 0, width, height, 8);
   ctx.fill();
+  ctx.globalAlpha = 1.0;
 
   // Border
   ctx.strokeStyle = s.borderStroke;
   ctx.lineWidth = s.borderWidth;
+  if (nodeType === 'group') ctx.setLineDash([8, 8]);
   ctx.stroke();
+  ctx.setLineDash([]);
 
   // Header bar
   ctx.fillStyle = s.headerFill;

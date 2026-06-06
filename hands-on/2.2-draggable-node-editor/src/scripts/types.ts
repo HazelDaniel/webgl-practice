@@ -1,5 +1,6 @@
 export type ThemeName = 'dark' | 'light' | 'neon';
 export type GeometryMeshType = 'rounded-square';
+export type NodeType = 'node' | 'group';
 
 export interface ShaderLocations {
   a_Position: number;
@@ -14,6 +15,8 @@ export interface ShaderLocations {
 
 export interface NodeData {
   id: number;
+  nodeType: NodeType;
+  isDropTarget?: boolean;
   /** Position relative to parent node (or world origin if parentId is null). */
   localX: number;
   localY: number;

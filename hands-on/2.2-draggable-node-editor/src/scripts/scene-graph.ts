@@ -40,11 +40,21 @@ export function reparent(
   childId: number,
   newParentId: number | null,
   nodes: Map<number, NodeData>
-): void {
+): boolean {
   const child = nodes.get(childId);
-  if (!child) return;
+  if (!child) return false;
+
+  if (newParentId !== null) {
+    const newParent = nodes.get(newParentId);
+    if (!newParent) return false;
+    // 1. Only groups can be parents
+    if (newParent.nodeType !== 'group') return false;
+    // 2. Groups cannot be nested (1-level nesting limit)
+    if (child.nodeType === 'group') return false;
+  }
+
   // Prevent a node from being its own ancestor (cycle guard)
-  if (newParentId !== null && isAncestor(newParentId, childId, nodes)) return;
+  if (newParentId !== null && isAncestor(newParentId, childId, nodes)) return false;
 
   // Snapshot the child's current world position before anything changes
   const childWorld = getWorldPosition(childId, nodes);
@@ -74,6 +84,7 @@ export function reparent(
   }
 
   child.parentId = newParentId;
+  return true;
 }
 
 /**

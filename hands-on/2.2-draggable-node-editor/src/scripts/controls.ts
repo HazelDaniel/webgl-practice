@@ -3,6 +3,7 @@ import { ThemeName } from './types.js';
 /** All interaction events the NodeEditor handles, expressed as plain callbacks. */
 export interface ControlCallbacks {
   onAddNode(): void;
+  onAddGroup(): void;
   onDeleteNode(): void;
   onBgColorChange(r: number, g: number, b: number, a: number): void;
   onThemeChange(theme: ThemeName): void;
@@ -20,6 +21,7 @@ export interface ControlCallbacks {
  */
 export class UIControls {
   private addNodeButton: HTMLButtonElement;
+  private addGroupButton: HTMLButtonElement;
   private deleteNodeButton: HTMLButtonElement;
 
   constructor(
@@ -28,9 +30,11 @@ export class UIControls {
     callbacks: ControlCallbacks
   ) {
     this.addNodeButton    = container.querySelector('#btn-add-node')!    as HTMLButtonElement;
+    this.addGroupButton   = container.querySelector('#btn-add-group')!   as HTMLButtonElement;
     this.deleteNodeButton = container.querySelector('#btn-delete-node')! as HTMLButtonElement;
 
     this.addNodeButton.addEventListener('click', () => callbacks.onAddNode());
+    this.addGroupButton.addEventListener('click', () => callbacks.onAddGroup());
     this.deleteNodeButton.addEventListener('click', () => callbacks.onDeleteNode());
 
     const bgPicker = container.querySelector('#bg-color-picker') as HTMLInputElement | null;

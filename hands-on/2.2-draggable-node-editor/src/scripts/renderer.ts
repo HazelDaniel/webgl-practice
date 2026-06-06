@@ -82,7 +82,7 @@ export class Renderer {
 
     for (const node of this.store.visibleNodes()) {
       // Scene graph: resolve the absolute world position before building model matrix
-      const { x, y } = getWorldPosition(node.id, this.store.nodes);
+      const { x, y } = getWorldPosition(node.id, this.store.allNodesMap);
       this.drawNode(node, x, y, picking);
     }
   }
@@ -96,8 +96,13 @@ export class Renderer {
       gl.uniform4f(this.locations.u_Color, node.pickColor[0], node.pickColor[1], node.pickColor[2], 1.0);
       this.setModelMatrix(worldX, worldY, node.width, node.height);
     } else {
-      // Selection glow: draw a slightly larger quad behind the node
-      if (node.isSelected) {
+      if (node.isDropTarget) {
+        this.setModelMatrix(worldX - 6, worldY - 6, node.width + 12, node.height + 12);
+        gl.uniform1i(this.locations.u_UseTexture, 0);
+        gl.uniform4f(this.locations.u_Color, 0.13, 0.86, 0.39, 0.8); // Green glow
+        gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+      } else if (node.isSelected) {
+        // Selection glow: draw a slightly larger quad behind the node
         this.setModelMatrix(worldX - 4, worldY - 4, node.width + 8, node.height + 8);
         gl.uniform1i(this.locations.u_UseTexture, 0);
         gl.uniform4f(this.locations.u_Color, 0.23, 0.51, 0.96, 0.8);
