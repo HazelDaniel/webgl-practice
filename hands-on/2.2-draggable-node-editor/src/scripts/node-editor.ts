@@ -1,12 +1,16 @@
-import { NodeData, ThemeName, NodeType, NODE_LAYOUT } from './types.js';
-import { GeometryNode }        from './geometry.js';
-import { createProgram, getShaderLocations } from './shader.js';
-import { PickFBO }             from './pick-fbo.js';
-import { Camera }              from './camera.js';
-import { NodeStore }           from './node-store.js';
-import { Renderer }            from './renderer.js';
-import { UIControls }          from './controls.js';
-import { getWorldPosition }    from './scene-graph.js';
+import { NodeData, ThemeName, NodeType, NODE_LAYOUT } from "./types.js";
+import { BGGeometryNode, GeometryNode } from "./geometry.js";
+import {
+  createProgram,
+  getBGShaderLocations,
+  getShaderLocations,
+} from "./shader.js";
+import { PickFBO } from "./pick-fbo.js";
+import { Camera } from "./camera.js";
+import { NodeStore } from "./node-store.js";
+import { Renderer } from "./renderer.js";
+import { UIControls } from "./controls.js";
+import { getWorldPosition } from "./scene-graph.js";
 
 /**
  * NodeEditor is the single public class exposed to the entry point.
@@ -14,82 +18,111 @@ import { getWorldPosition }    from './scene-graph.js';
  * No internal type leaks out of this file's public API.
  */
 export class NodeEditor {
-  private camera:   Camera;
-  private store:    NodeStore;
-  private pickFBO:  PickFBO;
+  private camera: Camera;
+  private store: NodeStore;
+  private pickFBO: PickFBO;
   private renderer: Renderer;
   private controls: UIControls;
 
   // Interaction state
-  private bgColor:       [number, number, number, number] = [0.06, 0.09, 0.16, 1.0];
-  private theme:         ThemeName = 'dark';
-  private draggingNode:  NodeData | null = null;
-  private dragOffsetX:   number = 0;
-  private dragOffsetY:   number = 0;
-  private isPanning:     boolean = false;
-  private lastMouseX:    number = 0;
-  private lastMouseY:    number = 0;
+  private bgColor: [number, number, number, number] = [0.06, 0.09, 0.16, 1.0];
+  private theme: ThemeName = "dark";
+  private draggingNode: NodeData | null = null;
+  private dragOffsetX: number = 0;
+  private dragOffsetY: number = 0;
+  private isPanning: boolean = false;
+  private lastMouseX: number = 0;
+  private lastMouseY: number = 0;
 
   private static _instance: NodeEditor | null = null;
 
   static create(
     canvasId: string,
     textCanvasId: string,
+    backgroundCanvasId: string,
     vsSource: string,
-    fsSource: string
+    fsSource: string,
+    bgVsSource: string,
+    bgFsSource: string
   ): NodeEditor {
     if (this._instance) return this._instance;
-    this._instance = new NodeEditor(canvasId, textCanvasId, vsSource, fsSource);
+    this._instance = new NodeEditor(
+      canvasId,
+      textCanvasId,
+      backgroundCanvasId,
+      vsSource,
+      fsSource,
+      bgVsSource,
+      bgFsSource
+    );
     return this._instance;
   }
 
   private constructor(
     canvasId: string,
     textCanvasId: string,
+    backgroundCanvasId: string,
     vsSource: string,
-    fsSource: string
+    fsSource: string,
+    bgVsSource: string,
+    bgFsSource: string
   ) {
-    const canvas     = document.getElementById(canvasId) as HTMLCanvasElement;
-    const textCanvas = document.getElementById(textCanvasId) as HTMLCanvasElement;
-    if (!canvas)     throw new Error(`Canvas "${canvasId}" not found`);
+    const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
+    const textCanvas = document.getElementById(
+      textCanvasId
+    ) as HTMLCanvasElement;
+    const backgroundCanvas = document.getElementById(
+      backgroundCanvasId
+    ) as HTMLCanvasElement;
+    if (!canvas) throw new Error(`Canvas "${canvasId}" not found`);
     if (!textCanvas) throw new Error(`Canvas "${textCanvasId}" not found`);
+    if (!backgroundCanvas)
+      throw new Error(`Canvas "${backgroundCanvasId}" not found`);
 
-    const gl = canvas.getContext('webgl2') as WebGL2RenderingContext;
-    if (!gl) throw new Error('WebGL2 is not supported in this browser');
+    const gl = canvas.getContext("webgl2") as WebGL2RenderingContext;
+    if (!gl) throw new Error("WebGL2 is not supported in this browser");
 
-    const textCtx = textCanvas.getContext('2d');
-    if (!textCtx) throw new Error('2D canvas context not supported');
+    const textCtx = textCanvas.getContext("2d");
+    if (!textCtx) throw new Error("2D canvas context not supported");
 
-    const program   = createProgram(gl, vsSource, fsSource);
+    const program = createProgram(gl, vsSource, fsSource);
+    const bgProgram = createProgram(gl, bgVsSource, bgFsSource);
     const locations = getShaderLocations(gl, program);
-    const geometry  = new GeometryNode(gl, 'rounded-square');
+    const bgLocations = getBGShaderLocations(gl, bgProgram);
+    const geometry = new GeometryNode(gl, "rounded-square");
+    const bgGeometry = new BGGeometryNode(gl, "dotted", backgroundCanvas);
 
-    this.camera  = new Camera();
-    this.store   = new NodeStore(gl, textCtx, textCanvas);
+    this.camera = new Camera();
+    this.store = new NodeStore(gl, textCtx, textCanvas);
     this.pickFBO = new PickFBO(gl, canvas.width, canvas.height);
 
-    this.renderer = new Renderer(
-      gl, canvas, program, locations, geometry,
-      this.store, this.camera,
-      () => this.bgColor
+    //prettier-ignore
+    this.renderer = new Renderer(gl, canvas, backgroundCanvas, program, locations,
+      geometry, bgGeometry, this.store, this.camera, bgProgram, bgLocations,
+      () => this.bgColor,
     );
 
-    const container = document.getElementById('controls-container');
+    const container = document.getElementById("controls-container");
     if (!container) throw new Error('"controls-container" element not found');
 
     this.controls = new UIControls(canvas, container, {
-      onAddNode:        ()       => this.handleAddNode(canvas, 'node'),
-      onAddGroup:       ()       => this.handleAddNode(canvas, 'group'),
-      onDeleteNode:     ()       => this.handleDeleteSelected(),
-      onBgColorChange:  (r,g,b,a)=> { this.bgColor = [r, g, b, a]; },
-      onThemeChange:    (theme)  => { this.theme = theme; this.store.regenerateTextures(theme); },
-      onMouseDown:      (e)      => this.handleMouseDown(e, canvas),
-      onMouseMove:      (e)      => this.handleMouseMove(e, canvas),
-      onMouseUp:        (e)      => this.handleMouseUp(e, canvas),
-      onWheel:          (e)      => this.handleWheel(e, canvas),
+      onAddNode: () => this.handleAddNode(canvas, "node"),
+      onAddGroup: () => this.handleAddNode(canvas, "group"),
+      onDeleteNode: () => this.handleDeleteSelected(),
+      onBgColorChange: (r, g, b, a) => {
+        this.bgColor = [r, g, b, a];
+      },
+      onThemeChange: (theme) => {
+        this.theme = theme;
+        this.store.regenerateTextures(theme);
+      },
+      onMouseDown: (e) => this.handleMouseDown(e, canvas),
+      onMouseMove: (e) => this.handleMouseMove(e, canvas),
+      onMouseUp: (e) => this.handleMouseUp(e, canvas),
+      onWheel: (e) => this.handleWheel(e, canvas),
     });
 
-    window.addEventListener('resize', () => this.handleResize(canvas));
+    window.addEventListener("resize", () => this.handleResize(canvas));
     this.handleResize(canvas);
   }
 
@@ -97,19 +130,21 @@ export class NodeEditor {
     this.renderer.startLoop();
   }
 
-
   private handleResize(canvas: HTMLCanvasElement): void {
-    canvas.width  = window.innerWidth;
+    canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     this.renderer.resize(canvas.width, canvas.height);
     this.pickFBO.resize(canvas.width, canvas.height);
   }
 
   private handleAddNode(canvas: HTMLCanvasElement, nodeType: NodeType): void {
-    const screenX = Math.random() * (canvas.width  - 200) + 100;
+    const screenX = Math.random() * (canvas.width - 200) + 100;
     const screenY = Math.random() * (canvas.height - 200) + 100;
     const { x, y } = this.camera.screenToWorld(screenX, screenY);
-    const label = nodeType === 'group' ? `Group ${this.store.nextNodeId}` : `Node ${this.store.nextNodeId}`;
+    const label =
+      nodeType === "group"
+        ? `Group ${this.store.nextNodeId}`
+        : `Node ${this.store.nextNodeId}`;
     this.store.add(x, y, label, this.theme, nodeType);
   }
 
@@ -122,9 +157,10 @@ export class NodeEditor {
 
   private pick(screenX: number, screenY: number): number {
     this.pickFBO.bind();
-    this.renderer['gl'].clearColor(1.0, 1.0, 1.0, 1.0);
-    this.renderer['gl'].clear(
-      this.renderer['gl'].COLOR_BUFFER_BIT | this.renderer['gl'].DEPTH_BUFFER_BIT
+    this.renderer["gl"].clearColor(1.0, 1.0, 1.0, 1.0);
+    this.renderer["gl"].clear(
+      this.renderer["gl"].COLOR_BUFFER_BIT |
+        this.renderer["gl"].DEPTH_BUFFER_BIT
     );
     this.renderer.drawNodes(true);
 
@@ -139,7 +175,7 @@ export class NodeEditor {
 
   private getHoveredGroup(screenX: number, screenY: number): NodeData | null {
     if (!this.draggingNode) return null;
-    
+
     // Temporarily hide dragging node so we can pick what's behind it
     this.draggingNode.visible = false;
     const pickedId = this.pick(screenX, screenY);
@@ -147,7 +183,12 @@ export class NodeEditor {
 
     if (pickedId === 0) return null;
     const pickedNode = this.store.get(pickedId);
-    if (pickedNode && pickedNode.nodeType === 'group' && pickedNode.id !== this.draggingNode.id) return pickedNode;
+    if (
+      pickedNode &&
+      pickedNode.nodeType === "group" &&
+      pickedNode.id !== this.draggingNode.id
+    )
+      return pickedNode;
     return null;
   }
 
@@ -161,8 +202,8 @@ export class NodeEditor {
     const { left, top } = canvas.getBoundingClientRect();
     const screenX = e.clientX - left;
     const screenY = e.clientY - top;
-    const nodeId  = this.pick(screenX, screenY);
-    const node    = this.store.get(nodeId);
+    const nodeId = this.pick(screenX, screenY);
+    const node = this.store.get(nodeId);
 
     if (!node) {
       this.store.deselectAll();
@@ -173,9 +214,12 @@ export class NodeEditor {
     }
 
     this.controls.enableDelete();
-    
+
     // Store click coordinates relative to node origin
-    const { x: worldX, y: worldY } = this.camera.screenToWorld(screenX, screenY);
+    const { x: worldX, y: worldY } = this.camera.screenToWorld(
+      screenX,
+      screenY
+    );
     const nodeWorld = getWorldPosition(node.id, this.store.allNodesMap);
     const localClickX = worldX - nodeWorld.x;
     const localClickY = worldY - nodeWorld.y;
@@ -185,7 +229,10 @@ export class NodeEditor {
     const closeY = NODE_LAYOUT.headerHeight / 2;
     const cDx = localClickX - closeX;
     const cDy = localClickY - closeY;
-    if (cDx * cDx + cDy * cDy <= NODE_LAYOUT.closeBtnClickRadius * NODE_LAYOUT.closeBtnClickRadius) {
+    if (
+      cDx * cDx + cDy * cDy <=
+      NODE_LAYOUT.closeBtnClickRadius * NODE_LAYOUT.closeBtnClickRadius
+    ) {
       const oldParentId = node.parentId;
       this.store.remove(node.id);
       this.controls.disableDelete();
@@ -196,13 +243,22 @@ export class NodeEditor {
     }
 
     // Check for plus icon (+) click (groups only, distance-based hit-test)
-    if (node.nodeType === 'group') {
+    if (node.nodeType === "group") {
       const plusX = node.width / 2;
       const plusY = node.height - NODE_LAYOUT.plusBtnPaddingBottom;
       const pDx = localClickX - plusX;
       const pDy = localClickY - plusY;
-      if (pDx * pDx + pDy * pDy <= NODE_LAYOUT.plusBtnClickRadius * NODE_LAYOUT.plusBtnClickRadius) {
-        const child = this.store.add(0, 0, `Node ${this.store.nextNodeId}`, this.theme, 'node');
+      if (
+        pDx * pDx + pDy * pDy <=
+        NODE_LAYOUT.plusBtnClickRadius * NODE_LAYOUT.plusBtnClickRadius
+      ) {
+        const child = this.store.add(
+          0,
+          0,
+          `Node ${this.store.nextNodeId}`,
+          this.theme,
+          "node"
+        );
         const success = this.store.setParent(child.id, node.id);
         if (success) {
           this.store.updateGroupBounds(node.id, this.theme);
@@ -212,14 +268,14 @@ export class NodeEditor {
     }
 
     this.store.deselectAll();
-    node.isSelected   = true;
+    node.isSelected = true;
     this.draggingNode = node;
-    this.dragOffsetX  = worldX - nodeWorld.x;
-    this.dragOffsetY  = worldY - nodeWorld.y;
+    this.dragOffsetX = worldX - nodeWorld.x;
+    this.dragOffsetY = worldY - nodeWorld.y;
   }
 
   private startPan(clientX: number, clientY: number): void {
-    this.isPanning  = true;
+    this.isPanning = true;
     this.lastMouseX = clientX;
     this.lastMouseY = clientY;
   }
@@ -249,15 +305,21 @@ export class NodeEditor {
       this.draggingNode.localX = targetX;
       this.draggingNode.localY = targetY;
     } else {
-      const parentWorld = getWorldPosition(this.draggingNode.parentId, this.store.allNodesMap);
+      const parentWorld = getWorldPosition(
+        this.draggingNode.parentId,
+        this.store.allNodesMap
+      );
       this.draggingNode.localX = targetX - parentWorld.x;
       this.draggingNode.localY = targetY - parentWorld.y;
     }
 
     // Check for drop targets if it's a node
-    if (this.draggingNode.nodeType === 'node') {
-      const hoveredGroup = this.getHoveredGroup(e.clientX - left, e.clientY - top);
-      
+    if (this.draggingNode.nodeType === "node") {
+      const hoveredGroup = this.getHoveredGroup(
+        e.clientX - left,
+        e.clientY - top
+      );
+
       this.store.clearDropTargets();
       if (hoveredGroup) {
         hoveredGroup.isDropTarget = true;
@@ -267,15 +329,21 @@ export class NodeEditor {
 
   private handleMouseUp(e: MouseEvent, canvas: HTMLCanvasElement): void {
     this.isPanning = false;
-    
+
     if (this.draggingNode) {
-      if (this.draggingNode.nodeType === 'node') {
+      if (this.draggingNode.nodeType === "node") {
         const { left, top } = canvas.getBoundingClientRect();
-        const hoveredGroup = this.getHoveredGroup(e.clientX - left, e.clientY - top);
+        const hoveredGroup = this.getHoveredGroup(
+          e.clientX - left,
+          e.clientY - top
+        );
         const oldParentId = this.draggingNode.parentId;
 
         if (hoveredGroup) {
-          const success = this.store.setParent(this.draggingNode.id, hoveredGroup.id);
+          const success = this.store.setParent(
+            this.draggingNode.id,
+            hoveredGroup.id
+          );
           if (success) {
             this.store.updateGroupBounds(hoveredGroup.id, this.theme);
           }
@@ -284,7 +352,10 @@ export class NodeEditor {
           this.store.setParent(this.draggingNode.id, null);
         }
 
-        if (oldParentId !== null && oldParentId !== this.draggingNode.parentId) {
+        if (
+          oldParentId !== null &&
+          oldParentId !== this.draggingNode.parentId
+        ) {
           this.store.updateGroupBounds(oldParentId, this.theme);
         }
       }

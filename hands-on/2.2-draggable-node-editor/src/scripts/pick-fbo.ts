@@ -1,22 +1,21 @@
+import { CustomFBO } from "./fbo.js";
+
 /**
  * Manages an off-screen WebGL Framebuffer Object used for color-picking.
  * The FBO holds a color texture (for reading encoded node IDs) and a
  * depth renderbuffer. It must be resized whenever the canvas is resized.
  */
-export class PickFBO {
-  private fbo!: WebGLFramebuffer;
+export class PickFBO extends CustomFBO {
+  declare protected fbo: WebGLFramebuffer;
   private texture!: WebGLTexture;
   private renderBuffer!: WebGLRenderbuffer;
-  private width: number;
-  private height: number;
 
-  constructor(private gl: WebGL2RenderingContext, width: number, height: number) {
-    this.width = width;
-    this.height = height;
+  constructor(protected gl: WebGL2RenderingContext, width: number, height: number) {
+    super(gl, width, height);
     this.allocate(width, height);
   }
 
-  private allocate(width: number, height: number): void {
+  protected allocate(width: number, height: number): void {
     const gl = this.gl;
 
     this.fbo = gl.createFramebuffer()!;

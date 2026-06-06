@@ -1,4 +1,4 @@
-import { GeometryMeshType } from './types.js';
+import { BGGeometryMeshType, GeometryMeshType } from "./types.js";
 
 /**
  * Owns the WebGL vertex and index buffers for a given mesh shape.
@@ -10,7 +10,7 @@ export class GeometryNode {
 
   constructor(private gl: WebGL2RenderingContext, meshType: GeometryMeshType) {
     switch (meshType) {
-      case 'rounded-square':
+      case "rounded-square":
         this.generateSquareMesh();
         break;
     }
@@ -38,5 +38,89 @@ export class GeometryNode {
 
     this.vertexBuffer = vertexBuffer;
     this.indexBuffer = indexBuffer;
+  }
+}
+
+/**
+ * Owns the WebGL vertex and index buffers for a given mesh shape.
+ * Currently supports 'dotted' (a dotted bg pattern).
+ */
+export class BGGeometryNode {
+  public vertexBuffer: WebGLBuffer | null = null;
+  public length: number = 0;
+  public primitiveType: number = -1;
+
+  constructor(
+    private gl: WebGL2RenderingContext,
+    meshType: BGGeometryMeshType,
+    private readonly canvas: HTMLCanvasElement
+  ) {
+    switch (meshType) {
+      case "dotted":
+        this.generateDotMesh();
+        break;
+      case "grid":
+        this.generateGridMesh();
+        break;
+    }
+  }
+
+  private generateDotMesh(): void {
+    const gl = this.gl;
+    const Vsegments = this.canvas.height / 10;
+    const Hsegments = this.canvas.width / 10;
+    //prettier-ignore
+    const vertices = new Float32Array((Vsegments + 1) * (Hsegments + 1) * 2);
+
+    const stepX = (10 / this.canvas.width) * 2;
+    const stepY = (10 / this.canvas.height) * 2;
+
+    for (let i = 0; i <= Vsegments; i++) {
+      for (let j = 0; j <= Hsegments; j++) {
+        let y = i,
+          x = j;
+        x = -1 + j * stepX;
+        y = -1 + i * stepY + 0.1;
+
+        const index = (i * (Hsegments + 1) + j) * 2;
+        vertices[index] = x;
+        vertices[index + 1] = y;
+      }
+    }
+
+    const vertexBuffer = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+    this.vertexBuffer = vertexBuffer;
+    this.primitiveType = gl.POINTS;
+
+    this.length = vertices.length / 2;
+  }
+
+  private generateGridMesh(): void {
+    const gl = this.gl;
+    const lines: number[] = [];
+    const divisionsX = this.canvas.width / 20;
+    const divisionsY = this.canvas.height / 20;
+    const stepX = 2.0 / divisionsX;
+    const stepY = 2.0 / divisionsY;
+
+    for (let i = 0; i <= Math.max(divisionsX, divisionsY); i++) {
+      const posX = -1.0 + i * stepX;
+      const posY = -1.0 + i * stepY;
+      lines.push(posY, -1.0, posY, 1.0);
+      lines.push(-1.0, posX, 1.0, posX);
+    }
+
+    const vertexBuffer = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.STATIC_DRAW);
+
+    this.vertexBuffer = vertexBuffer;
+
+
+    this.length = lines.length / 2;
+    this.primitiveType = gl.LINES;
   }
 }

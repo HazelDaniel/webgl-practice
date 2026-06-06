@@ -1,4 +1,4 @@
-import { ShaderLocations } from './types.js';
+import { NodeShaderLocations, BGShaderLocations } from './types.js';
 
 /**
  * Compiles vertex and fragment shaders, links them into a program, and returns it.
@@ -58,8 +58,8 @@ export function createProgram(
 export function getShaderLocations(
   gl: WebGL2RenderingContext,
   program: WebGLProgram
-): ShaderLocations {
-  const locations: ShaderLocations = {
+): NodeShaderLocations {
+  const locations: NodeShaderLocations = {
     a_Position:   gl.getAttribLocation(program, 'a_Position'),
     a_TexCoord:   gl.getAttribLocation(program, 'a_TexCoord'),
     u_Color:      gl.getUniformLocation(program, 'u_Color')!,
@@ -73,7 +73,20 @@ export function getShaderLocations(
   return locations;
 }
 
-function validateShaderLocations(locs: ShaderLocations): void {
+export function getBGShaderLocations(
+  gl: WebGL2RenderingContext,
+  program: WebGLProgram
+): BGShaderLocations {
+  const locations: BGShaderLocations = {
+    a_Position:   gl.getAttribLocation(program, 'a_Position'),
+    u_Color:      gl.getUniformLocation(program, 'u_Color')!,
+  };
+  validateShaderLocations(locations);
+  return locations;
+}
+
+
+function validateShaderLocations(locs: BGShaderLocations): void {
   for (const [key, val] of Object.entries(locs)) {
     if (key.startsWith('a_') && (val as number) < 0) {
       throw new Error(`Shader attribute ${key} has an invalid location`);

@@ -1,5 +1,6 @@
 export type ThemeName = 'dark' | 'light' | 'neon';
 export type GeometryMeshType = 'rounded-square';
+export type BGGeometryMeshType = 'dotted' | 'grid';
 export type NodeType = 'node' | 'group';
 
 export const NODE_LAYOUT = {
@@ -10,7 +11,7 @@ export const NODE_LAYOUT = {
   plusBtnClickRadius: 12,
 };
 
-export interface ShaderLocations {
+export interface NodeShaderLocations {
   a_Position: number;
   a_TexCoord: number;
   u_ModelMatrix: WebGLUniformLocation;
@@ -19,6 +20,11 @@ export interface ShaderLocations {
   u_Color: WebGLUniformLocation;
   u_UseTexture: WebGLUniformLocation;
   u_Sampler: WebGLUniformLocation;
+}
+
+export interface BGShaderLocations {
+  a_Position: number;
+  u_Color: WebGLUniformLocation;
 }
 
 export interface NodeData {
