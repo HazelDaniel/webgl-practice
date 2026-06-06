@@ -25,7 +25,7 @@ export class NodeEditor {
   private controls: UIControls;
 
   // Interaction state
-  private bgColor: [number, number, number, number] = [0.06, 0.09, 0.16, 1.0];
+  private bgColor: [number, number, number, number] = [7/255, 7/255, 8/255, 1.0];
   private theme: ThemeName = "dark";
   private draggingNode: NodeData | null = null;
   private dragOffsetX: number = 0;

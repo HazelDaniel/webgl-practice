@@ -1,0 +1,1 @@
+- selected nodes not pushed up the stacking index
