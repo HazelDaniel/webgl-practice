@@ -63,6 +63,28 @@ export class NodeStore {
     return this.nodes.get(id) ?? this.groups.get(id);
   }
 
+  /**
+   * Returns the ids that would be removed by `remove(id)`.
+   *
+   * Container nodes cascade to descendants. Leaf nodes may still have
+   * descendants in the current tree model, but those children are promoted
+   * rather than deleted.
+   */
+  collectRemovedIds(id: number): number[] {
+    const node = this.get(id);
+    if (!node) return [];
+
+    if (!isContainerNodeType(node.nodeType)) {
+      return [id];
+    }
+
+    const removedIds = [id];
+    for (const childId of node.childIds) {
+      removedIds.push(...this.collectRemovedIds(childId));
+    }
+    return removedIds;
+  }
+
   /** Create a new node at world coordinates (localX, localY). */
   add(
     localX: number,
@@ -217,8 +239,7 @@ export class NodeStore {
   updateHandleConnectionState(
     nodeId: number,
     side: NodeHandleData['side'],
-    isConnected: boolean,
-    theme?: ThemeName
+    isConnected: boolean
   ): void {
     const node = this.get(nodeId);
     if (!node) return;
@@ -227,7 +248,6 @@ export class NodeStore {
     if (!handle || handle.isConnected === isConnected) return;
 
     handle.isConnected = isConnected;
-    this.refreshNodeTexture(node, theme ?? this.currentTheme);
   }
 
   /** Assign a new parent to a child node, preserving world position. */

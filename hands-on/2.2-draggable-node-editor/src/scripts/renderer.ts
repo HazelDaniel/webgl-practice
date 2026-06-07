@@ -2,9 +2,16 @@ import {
   NodeData,
   NodeShaderLocations,
   BGShaderLocations,
+  ConnectionPreviewData,
 } from "./types.js";
 import { BGGeometryNode, GeometryNode } from "./geometry.js";
 import { Camera } from "./camera.js";
+import { EdgeStore } from "./edge-store.js";
+import {
+  buildConnectionPreviewGeometry,
+  buildEdgeRouteGeometry,
+  EdgeRouteGeometry,
+} from "./edge-geometry.js";
 import { NodeStore } from "./node-store.js";
 import { getWorldPosition } from "./scene-graph.js";
 import { drawHandle } from "./texture.js";
@@ -27,17 +34,31 @@ export class Renderer {
     private geometry: GeometryNode,
     private bgGeometry: BGGeometryNode,
     private store: NodeStore,
+    private edgeStore: EdgeStore,
     private camera: Camera,
     private bgProgram: WebGLProgram,
     private bgLocations: BGShaderLocations,
     private labelCanvas: HTMLCanvasElement,
+    private getConnectionPreview: () => ConnectionPreviewData | null,
+    private getSelectedEdgeId: () => number | null,
     /** Callback so Renderer never stores bgColor itself — it belongs to the editor. */
     private getBgColor: () => [number, number, number, number]
   ) {
     this.labelCtx = labelCanvas.getContext('2d');
+    this.edgeVertexBuffer = gl.createBuffer();
+    this.edgeHeadBuffer = gl.createBuffer();
+    if (!this.edgeVertexBuffer) {
+      throw new Error('Unable to allocate edge vertex buffer');
+    }
+    if (!this.edgeHeadBuffer) {
+      throw new Error('Unable to allocate edge head buffer');
+    }
   }
 
   private labelCtx: CanvasRenderingContext2D | null;
+  private edgeVertexBuffer: WebGLBuffer;
+  private edgeHeadBuffer: WebGLBuffer;
+  private edgeFrame: EdgeRouteGeometry[] = [];
 
   /** Call once after each canvas resize to update the orthographic projection. */
   resize(width: number, height: number): void {
@@ -65,6 +86,7 @@ export class Renderer {
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     // gl.clearColor(0.0, 0.0, 0.0, 0.0);
     // gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    this.drawEdges();
     this.drawNodes(false);
     this.drawOverlay();
   }
@@ -73,9 +95,85 @@ export class Renderer {
     if (!this.labelCtx) return;
     this.labelCtx.clearRect(0, 0, this.labelCanvas.width, this.labelCanvas.height);
 
+    this.drawConnectionPreview();
+    this.drawEdgeLabels();
+
     for (const node of this.store.visibleNodes()) {
       this.drawHandles(node);
     }
+
+    this.drawGroupLabels();
+  }
+
+  private drawConnectionPreview(): void {
+    if (!this.labelCtx) return;
+
+    const preview = this.getConnectionPreview();
+    if (!preview) return;
+
+    const route = buildConnectionPreviewGeometry(
+      preview.sourceNodeId,
+      preview.sourceHandleSide,
+      preview.screenX,
+      preview.screenY,
+      this.store,
+      this.camera
+    );
+    if (!route) return;
+
+    this.labelCtx.save();
+    this.labelCtx.beginPath();
+    this.labelCtx.lineWidth = 2;
+    this.labelCtx.strokeStyle = 'rgba(96, 165, 250, 0.95)';
+    this.labelCtx.setLineDash([8, 6]);
+    this.labelCtx.moveTo(route.screenPoints[0].x, route.screenPoints[0].y);
+    for (let i = 1; i < route.screenPoints.length; i++) {
+      this.labelCtx.lineTo(route.screenPoints[i].x, route.screenPoints[i].y);
+    }
+    this.labelCtx.stroke();
+    this.labelCtx.restore();
+  }
+
+  private drawEdgeLabels(): void {
+    if (!this.labelCtx) return;
+
+    const selectedEdgeId = this.getSelectedEdgeId();
+    this.labelCtx.save();
+    this.labelCtx.font = '500 12px Inter, sans-serif';
+    this.labelCtx.textBaseline = 'middle';
+    this.labelCtx.fillStyle = 'rgba(226, 232, 240, 0.95)';
+
+    for (const route of this.edgeFrame) {
+      if (!route.edge.label) continue;
+
+      const x = route.labelScreenPoint.x;
+      const y = route.labelScreenPoint.y - 12;
+      const isSelected = route.edge.id === selectedEdgeId;
+
+      const metrics = this.labelCtx.measureText(route.edge.label);
+      const padX = 8;
+      const padY = 4;
+      const width = metrics.width + padX * 2;
+      const height = 20;
+
+      this.labelCtx.fillStyle = isSelected
+        ? 'rgba(69, 26, 3, 0.92)'
+        : 'rgba(15, 23, 42, 0.72)';
+      this.labelCtx.beginPath();
+      this.labelCtx.roundRect(x - width / 2, y - height / 2, width, height, 8);
+      this.labelCtx.fill();
+
+      this.labelCtx.fillStyle = isSelected
+        ? 'rgba(255, 243, 205, 0.98)'
+        : 'rgba(226, 232, 240, 0.95)';
+      this.labelCtx.fillText(route.edge.label, x - metrics.width / 2, y);
+    }
+
+    this.labelCtx.restore();
+  }
+
+  private drawGroupLabels(): void {
+    if (!this.labelCtx) return;
 
     this.labelCtx.font = '600 14px Inter, sans-serif';
     this.labelCtx.textBaseline = 'middle';
@@ -83,8 +181,7 @@ export class Renderer {
     for (const node of this.store.visibleNodes()) {
       if (node.nodeType !== 'group') continue;
 
-      const { x, y } = getWorldPosition(node.id, this.store.allNodesMap);
-      const screenPos = this.camera.worldToScreen(x, y);
+      const screenPos = this.camera.worldToScreen(node.localX, node.localY);
       this.labelCtx.fillStyle = '#f8fafc';
       this.labelCtx.fillText(node.text, screenPos.x + 15, screenPos.y + 20);
     }
@@ -109,6 +206,200 @@ export class Renderer {
       );
       drawHandle(this.labelCtx, handle, geometry.centerX, geometry.centerY);
     }
+  }
+
+  private drawEdges(): void {
+    const gl = this.gl;
+    const visibleEdges = this.edgeStore.allEdges().filter((edge) => edge.visible);
+    this.edgeFrame = [];
+    const selectedEdgeId = this.getSelectedEdgeId();
+
+    if (visibleEdges.length === 0) return;
+
+    const lineVertices: number[] = [];
+    const headVertices: number[] = [];
+    const lineDraws: Array<{ first: number; count: number }> = [];
+    const headDraws: Array<{ first: number; count: number }> = [];
+    let lineCursor = 0;
+    let headCursor = 0;
+
+    for (const edge of visibleEdges) {
+      const geometry = buildEdgeRouteGeometry(edge, this.store, this.camera);
+      if (!geometry || geometry.worldPoints.length < 2) continue;
+
+      this.edgeFrame.push(geometry);
+      if (edge.id === selectedEdgeId) continue;
+
+      lineDraws.push({ first: lineCursor, count: geometry.worldPoints.length });
+      lineCursor += geometry.worldPoints.length;
+
+      for (const point of geometry.worldPoints) {
+        lineVertices.push(point.x, point.y, 0, 0);
+      }
+
+      if (geometry.arrowhead) {
+        headDraws.push({ first: headCursor, count: 4 });
+        headCursor += 4;
+        headVertices.push(
+          geometry.arrowhead.tip.x,
+          geometry.arrowhead.tip.y,
+          0,
+          0,
+          geometry.arrowhead.left.x,
+          geometry.arrowhead.left.y,
+          0,
+          0,
+          geometry.arrowhead.tip.x,
+          geometry.arrowhead.tip.y,
+          0,
+          0,
+          geometry.arrowhead.right.x,
+          geometry.arrowhead.right.y,
+          0,
+          0
+        );
+      }
+    }
+
+    gl.useProgram(this.program);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    this.bindEdgeVertexBuffer(this.edgeVertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lineVertices), gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+
+    gl.uniformMatrix4fv(this.locations.u_ProjMatrix, false, this.projMatrix.elements);
+    gl.uniformMatrix4fv(this.locations.u_ViewMatrix, false, this.camera.getViewMatrix().elements);
+    this.modelMatrix.setIdentity();
+    gl.uniformMatrix4fv(this.locations.u_ModelMatrix, false, this.modelMatrix.elements);
+    gl.uniform1i(this.locations.u_UseTexture, 0);
+
+    gl.uniform4f(this.locations.u_Color, 0.38, 0.62, 1.0, 0.72);
+    let vertexOffset = 0;
+    for (const draw of lineDraws) {
+      gl.drawArrays(gl.LINE_STRIP, vertexOffset, draw.count);
+      vertexOffset += draw.count;
+    }
+
+    if (headVertices.length > 0) {
+      this.bindEdgeVertexBuffer(this.edgeHeadBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(headVertices), gl.DYNAMIC_DRAW);
+      gl.uniform4f(this.locations.u_Color, 0.38, 0.62, 1.0, 0.9);
+      let headOffset = 0;
+      for (const draw of headDraws) {
+        gl.drawArrays(gl.LINES, headOffset, draw.count);
+        headOffset += draw.count;
+      }
+    }
+
+    if (selectedEdgeId !== null) {
+      const selectedEdge = visibleEdges.find((edge) => edge.id === selectedEdgeId);
+      if (selectedEdge) {
+        const selectedGeometry = buildEdgeRouteGeometry(selectedEdge, this.store, this.camera);
+        if (selectedGeometry) {
+          this.drawSingleEdge(
+            selectedGeometry,
+            'rgba(245, 158, 11, 0.98)',
+            'rgba(251, 191, 36, 1)'
+          );
+        }
+      }
+    }
+  }
+
+  private drawSingleEdge(
+    geometry: EdgeRouteGeometry,
+    strokeColor: string,
+    headColor: string
+  ): void {
+    const gl = this.gl;
+
+    this.bindEdgeVertexBuffer(this.edgeVertexBuffer);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      new Float32Array(
+        geometry.worldPoints.flatMap((point) => [point.x, point.y, 0, 0])
+      ),
+      gl.DYNAMIC_DRAW
+    );
+
+    gl.uniformMatrix4fv(this.locations.u_ProjMatrix, false, this.projMatrix.elements);
+    gl.uniformMatrix4fv(this.locations.u_ViewMatrix, false, this.camera.getViewMatrix().elements);
+    this.modelMatrix.setIdentity();
+    gl.uniformMatrix4fv(this.locations.u_ModelMatrix, false, this.modelMatrix.elements);
+    gl.uniform1i(this.locations.u_UseTexture, 0);
+    gl.uniform4f(this.locations.u_Color, ...this.parseColor(strokeColor));
+    gl.drawArrays(gl.LINE_STRIP, 0, geometry.worldPoints.length);
+
+    if (geometry.arrowhead) {
+      this.bindEdgeVertexBuffer(this.edgeHeadBuffer);
+      gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array([
+          geometry.arrowhead.tip.x,
+          geometry.arrowhead.tip.y,
+          0,
+          0,
+          geometry.arrowhead.left.x,
+          geometry.arrowhead.left.y,
+          0,
+          0,
+          geometry.arrowhead.tip.x,
+          geometry.arrowhead.tip.y,
+          0,
+          0,
+          geometry.arrowhead.right.x,
+          geometry.arrowhead.right.y,
+          0,
+          0,
+        ]),
+        gl.DYNAMIC_DRAW
+      );
+      gl.uniform4f(this.locations.u_Color, ...this.parseColor(headColor));
+      gl.drawArrays(gl.LINES, 0, 4);
+    }
+  }
+
+  private bindEdgeVertexBuffer(buffer: WebGLBuffer): void {
+    const gl = this.gl;
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+
+    const stride = 4 * Float32Array.BYTES_PER_ELEMENT;
+    gl.vertexAttribPointer(
+      this.locations.a_Position,
+      2,
+      gl.FLOAT,
+      false,
+      stride,
+      0
+    );
+    gl.enableVertexAttribArray(this.locations.a_Position);
+    gl.vertexAttribPointer(
+      this.locations.a_TexCoord,
+      2,
+      gl.FLOAT,
+      false,
+      stride,
+      2 * Float32Array.BYTES_PER_ELEMENT
+    );
+    gl.enableVertexAttribArray(this.locations.a_TexCoord);
+  }
+
+  private parseColor(color: string): [number, number, number, number] {
+    if (color.startsWith('rgba(')) {
+      const parts = color
+        .slice(5, -1)
+        .split(',')
+        .map((part) => part.trim());
+      return [
+        Number(parts[0]) / 255,
+        Number(parts[1]) / 255,
+        Number(parts[2]) / 255,
+        Number(parts[3]),
+      ];
+    }
+
+    return [0.38, 0.62, 1.0, 1.0];
   }
 
   private drawBGFrame(): void {

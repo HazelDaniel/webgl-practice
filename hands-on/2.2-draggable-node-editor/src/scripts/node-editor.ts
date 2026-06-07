@@ -6,6 +6,11 @@ import {
 } from "./shader.js";
 import { PickFBO } from "./pick-fbo.js";
 import { Camera } from "./camera.js";
+import { EdgeStore } from "./edge-store.js";
+import {
+  buildEdgeRouteGeometry,
+  hitTestEdgePolyline,
+} from "./edge-geometry.js";
 import { NodeStore } from "./node-store.js";
 import { Renderer } from "./renderer.js";
 import { UIControls } from "./controls.js";
@@ -14,6 +19,7 @@ import {
   NodeEditorConfig,
   NodeData,
   NodeHandleData,
+  HandleSide,
   ThemeName,
   NodeType,
   DEFAULT_HANDLE_STYLE,
@@ -32,7 +38,7 @@ interface DragSnapshot {
 
 interface ConnectionDragState {
   sourceNodeId: number;
-  sourceHandle: NodeHandleData;
+  sourceHandleSide: HandleSide;
   screenX: number;
   screenY: number;
 }
@@ -45,6 +51,7 @@ interface ConnectionDragState {
 export class NodeEditor {
   private camera: Camera;
   private store: NodeStore;
+  private edgeStore: EdgeStore;
   private pickFBO: PickFBO;
   private renderer: Renderer;
   private controls: UIControls;
@@ -61,6 +68,7 @@ export class NodeEditor {
   private connectionMode: ConnectionMode;
   private activeConnectionDrag: ConnectionDragState | null = null;
   private hoveredHandle: HandleHit | null = null;
+  private selectedEdgeId: number | null = null;
 
   private static _instance: NodeEditor | null = null;
 
@@ -132,11 +140,14 @@ export class NodeEditor {
       this.connectionMode,
       options.handleStyle ?? DEFAULT_HANDLE_STYLE
     );
+    this.edgeStore = new EdgeStore();
     this.pickFBO = new PickFBO(gl, canvas.width, canvas.height);
 
     //prettier-ignore
     this.renderer = new Renderer(gl, canvas, backgroundCanvas, program, locations,
-      geometry, bgGeometry, this.store, this.camera, bgProgram, bgLocations, labelCanvas,
+      geometry, bgGeometry, this.store, this.edgeStore, this.camera, bgProgram, bgLocations, labelCanvas,
+      () => this.activeConnectionDrag,
+      () => this.selectedEdgeId,
       () => this.bgColor,
     );
 
@@ -229,18 +240,31 @@ export class NodeEditor {
 
   private handleDeleteSelected(): void {
     const selected = this.store.getSelected();
-    if (!selected) return;
+    if (selected) {
+      const parentId = selected.parentId;
+      this.removeNodeAndIncidentEdges(selected.id);
 
-    const parentId = selected.parentId;
-    this.store.remove(selected.id);
+      if (parentId !== null) {
+        this.refreshContainerChain(parentId);
+      }
 
-    if (parentId !== null) {
-      this.refreshContainerChain(parentId);
+      this.store.deselectAll();
+      this.selectedEdgeId = null;
+      this.controls.hideProperties();
+      this.syncToolbarState();
+      return;
     }
 
-    this.store.deselectAll();
-    this.controls.hideProperties();
-    this.syncToolbarState();
+    if (this.selectedEdgeId !== null) {
+      const edge = this.edgeStore.get(this.selectedEdgeId);
+      if (edge) {
+        this.edgeStore.remove(edge.id);
+        this.syncHandleStates(edge.sourceNodeId);
+        this.syncHandleStates(edge.targetNodeId);
+      }
+      this.selectedEdgeId = null;
+      this.syncToolbarState();
+    }
   }
 
   private pick(screenX: number, screenY: number): number {
@@ -339,7 +363,7 @@ export class NodeEditor {
   }
 
   private syncToolbarState(): void {
-    if (this.store.getSelected()) {
+    if (this.hasSelection()) {
       this.controls.enableDelete();
     } else {
       this.controls.disableDelete();
@@ -376,10 +400,11 @@ export class NodeEditor {
     if (handleHit) {
       this.activeConnectionDrag = {
         sourceNodeId: handleHit.nodeId,
-        sourceHandle: handleHit.handle,
+        sourceHandleSide: handleHit.handle.side,
         screenX,
         screenY,
       };
+      this.selectedEdgeId = null;
       this.hoveredHandle = handleHit;
       this.draggingNode = null;
       this.dragSnapshot = null;
@@ -390,8 +415,21 @@ export class NodeEditor {
     const node = this.store.get(nodeId);
 
     if (!node) {
+      const edgeHit = this.hitTestEdge(screenX, screenY);
+      if (edgeHit) {
+        this.store.deselectAll();
+        this.controls.hideProperties();
+        this.selectedEdgeId = edgeHit.id;
+        this.hoveredHandle = null;
+        this.draggingNode = null;
+        this.dragSnapshot = null;
+        this.syncToolbarState();
+        return;
+      }
+
       this.store.deselectAll();
       this.controls.hideProperties();
+      this.selectedEdgeId = null;
       this.draggingNode = null;
       this.dragSnapshot = null;
       this.hoveredHandle = null;
@@ -411,23 +449,24 @@ export class NodeEditor {
       : NODE_LAYOUT.headerHeight / 2;
     const closeDx = localClickX - closeX;
     const closeDy = localClickY - closeY;
-      if (
-        closeDx * closeDx + closeDy * closeDy <=
-        NODE_LAYOUT.closeBtnClickRadius * NODE_LAYOUT.closeBtnClickRadius
-      ) {
+    if (
+      closeDx * closeDx + closeDy * closeDy <=
+      NODE_LAYOUT.closeBtnClickRadius * NODE_LAYOUT.closeBtnClickRadius
+    ) {
       const parentId = node.parentId;
-      this.store.remove(node.id);
+      this.removeNodeAndIncidentEdges(node.id);
       if (parentId !== null) {
         this.refreshContainerChain(parentId);
       }
-        this.store.deselectAll();
-        this.controls.hideProperties();
-        this.draggingNode = null;
-        this.dragSnapshot = null;
-        this.hoveredHandle = null;
-        this.syncToolbarState();
-        return;
-      }
+      this.store.deselectAll();
+      this.controls.hideProperties();
+      this.draggingNode = null;
+      this.dragSnapshot = null;
+      this.hoveredHandle = null;
+      this.selectedEdgeId = null;
+      this.syncToolbarState();
+      return;
+    }
 
     if (node.nodeType === "node" || node.nodeType === "composition-child" || node.nodeType === "group") {
       const editX = node.width - NODE_LAYOUT.editBtnPaddingRight;
@@ -442,6 +481,7 @@ export class NodeEditor {
       ) {
         this.store.deselectAll();
         node.isSelected = true;
+        this.selectedEdgeId = null;
         this.controls.showProperties(node.text);
         this.hoveredHandle = null;
         this.syncToolbarState();
@@ -468,6 +508,7 @@ export class NodeEditor {
         if (this.store.setParent(child.id, node.id)) {
           this.refreshContainerChain(node.id);
         }
+        this.selectedEdgeId = null;
         this.hoveredHandle = null;
         this.syncToolbarState();
         return;
@@ -476,6 +517,7 @@ export class NodeEditor {
 
     this.store.deselectAll();
     this.controls.hideProperties();
+    this.selectedEdgeId = null;
     node.isSelected = true;
     this.hoveredHandle = null;
     this.draggingNode = node;
@@ -545,6 +587,31 @@ export class NodeEditor {
     this.isPanning = false;
 
     if (this.activeConnectionDrag) {
+      const source = this.activeConnectionDrag;
+      const target = this.hoveredHandle;
+
+      if (
+        target &&
+        this.isValidConnection(
+          source.sourceNodeId,
+          source.sourceHandleSide,
+          target.nodeId,
+          target.handle.side
+        )
+      ) {
+        const edge = this.edgeStore.add({
+          sourceNodeId: source.sourceNodeId,
+          sourceHandleSide: source.sourceHandleSide,
+          targetNodeId: target.nodeId,
+          targetHandleSide: target.handle.side,
+        });
+
+        if (edge) {
+          this.syncHandleStates(edge.sourceNodeId);
+          this.syncHandleStates(edge.targetNodeId);
+        }
+      }
+
       this.activeConnectionDrag = null;
       this.hoveredHandle = null;
       this.syncToolbarState();
@@ -631,6 +698,81 @@ export class NodeEditor {
     this.draggingNode = null;
     this.dragSnapshot = null;
     this.syncToolbarState();
+  }
+
+  private isValidConnection(
+    sourceNodeId: number,
+    sourceHandleSide: HandleSide,
+    targetNodeId: number,
+    targetHandleSide: HandleSide
+  ): boolean {
+    if (sourceNodeId === targetNodeId) return false;
+
+    const sourceNode = this.store.get(sourceNodeId);
+    const targetNode = this.store.get(targetNodeId);
+    if (!sourceNode || !targetNode) return false;
+
+    if (this.edgeStore.hasConnection(sourceNodeId, sourceHandleSide)) return false;
+    if (this.edgeStore.hasConnection(targetNodeId, targetHandleSide)) return false;
+
+    return true;
+  }
+
+  private hitTestEdge(screenX: number, screenY: number): { id: number } | null {
+    const edges = this.edgeStore.allEdges().filter((edge) => edge.visible);
+
+    for (let i = edges.length - 1; i >= 0; i--) {
+      const geometry = buildEdgeRouteGeometry(edges[i], this.store, this.camera);
+      if (!geometry) continue;
+      if (hitTestEdgePolyline(screenX, screenY, geometry.screenPoints)) {
+        return { id: edges[i].id };
+      }
+    }
+
+    return null;
+  }
+
+  private removeNodeAndIncidentEdges(nodeId: number): void {
+    const removedIds = this.store.collectRemovedIds(nodeId);
+    const removedIdSet = new Set(removedIds);
+    const removedEdges = this.edgeStore.removeEdgesForNodes(removedIds);
+    const affectedNodeIds = new Set<number>();
+
+    for (const edge of removedEdges) {
+      if (!removedIdSet.has(edge.sourceNodeId)) {
+        affectedNodeIds.add(edge.sourceNodeId);
+      }
+      if (!removedIdSet.has(edge.targetNodeId)) {
+        affectedNodeIds.add(edge.targetNodeId);
+      }
+    }
+
+    this.store.remove(nodeId);
+
+    for (const affectedNodeId of affectedNodeIds) {
+      this.syncHandleStates(affectedNodeId);
+    }
+
+    if (this.selectedEdgeId !== null && removedEdges.some((edge) => edge.id === this.selectedEdgeId)) {
+      this.selectedEdgeId = null;
+    }
+  }
+
+  private syncHandleStates(nodeId: number): void {
+    this.store.updateHandleConnectionState(
+      nodeId,
+      'left',
+      this.edgeStore.hasConnection(nodeId, 'left')
+    );
+    this.store.updateHandleConnectionState(
+      nodeId,
+      'right',
+      this.edgeStore.hasConnection(nodeId, 'right')
+    );
+  }
+
+  private hasSelection(): boolean {
+    return this.store.getSelected() !== undefined || this.selectedEdgeId !== null;
   }
 
   private handleWheel(e: WheelEvent, canvas: HTMLCanvasElement): void {

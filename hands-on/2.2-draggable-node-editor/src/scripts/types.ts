@@ -8,6 +8,8 @@ export type CandidateNodeType = Exclude<NodeType, 'composition-child'>;
 export type ConnectionMode = 'group' | 'node';
 export type HandleSide = 'left' | 'right';
 export type HandleShape = 'circle' | 'square';
+export type EdgeType = 'line' | 'cubic' | 'line-curve';
+export type EdgeHeadType = 'none' | 'arrow';
 
 export interface HandleStyle {
   shape: HandleShape;
@@ -25,9 +27,29 @@ export interface NodeHandleData {
   style: HandleStyle;
 }
 
+export interface EdgeData {
+  id: number;
+  sourceNodeId: number;
+  sourceHandleSide: HandleSide;
+  targetNodeId: number;
+  targetHandleSide: HandleSide;
+  edgeType: EdgeType;
+  headType: EdgeHeadType;
+  label: string;
+  isSelected: boolean;
+  visible: boolean;
+}
+
 export interface NodeEditorConfig {
   connectionMode?: ConnectionMode;
   handleStyle?: HandleStyle;
+}
+
+export interface ConnectionPreviewData {
+  sourceNodeId: number;
+  sourceHandleSide: HandleSide;
+  screenX: number;
+  screenY: number;
 }
 
 export const NODE_LAYOUT = {
