@@ -24,15 +24,23 @@ export class Renderer {
     private camera: Camera,
     private bgProgram: WebGLProgram,
     private bgLocations: BGShaderLocations,
+    private labelCanvas: HTMLCanvasElement,
     /** Callback so Renderer never stores bgColor itself — it belongs to the editor. */
     private getBgColor: () => [number, number, number, number]
-  ) {}
+  ) {
+    this.labelCtx = labelCanvas.getContext('2d');
+  }
+
+  private labelCtx: CanvasRenderingContext2D | null;
 
   /** Call once after each canvas resize to update the orthographic projection. */
   resize(width: number, height: number): void {
     this.gl.viewport(0, 0, width, height);
     // Origin top-left, y-axis pointing down — matches screen and 2D canvas convention
     this.projMatrix.setOrtho(0, width, height, 0, -1, 1);
+    
+    this.labelCanvas.width = width;
+    this.labelCanvas.height = height;
   }
 
   /** Start the RAF-driven render loop. */
@@ -52,6 +60,33 @@ export class Renderer {
     // gl.clearColor(0.0, 0.0, 0.0, 0.0);
     // gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     this.drawNodes(false);
+    this.drawFloatingLabels();
+  }
+
+  private drawFloatingLabels(): void {
+    if (!this.labelCtx) return;
+    this.labelCtx.clearRect(0, 0, this.labelCanvas.width, this.labelCanvas.height);
+    
+    // Group labels
+    this.labelCtx.font = '600 14px Inter, sans-serif';
+    this.labelCtx.textBaseline = 'middle';
+    
+    for (const node of this.store.visibleNodes()) {
+      if (node.nodeType === 'group') {
+        const { x, y } = getWorldPosition(node.id, this.store.allNodesMap);
+        // Project group's top-left world pos to screen pos
+        const screenPos = this.camera.worldToScreen(x, y);
+        
+        // We want the text to be 15px from the left and 20px from the top (matches texture offset)
+        // Since the canvas is overlaid, we just draw at the screen pos + these offsets
+        
+        // Dark theme gets white text, others might be different, let's just use text-main for now
+        // Or we could read from the node.theme but store doesn't keep theme per-node.
+        // The texture uses titleFill. Let's just use white for now since group labels are floating.
+        this.labelCtx.fillStyle = '#f8fafc'; 
+        this.labelCtx.fillText(node.text, screenPos.x + 15, screenPos.y + 20);
+      }
+    }
   }
 
   private drawBGFrame(): void {

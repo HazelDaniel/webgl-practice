@@ -107,12 +107,14 @@ export function createTextTexture(
     ctx.fill();
   }
 
-  // Title
-  ctx.fillStyle = s.titleFill;
-  ctx.font = '600 14px Inter, sans-serif';
-  ctx.textBaseline = 'middle';
+  // Title (only for nodes, group labels are floating in 2D canvas overlay)
   const titleY = nodeType === 'group' ? 20 : NODE_LAYOUT.headerHeight / 2;
-  ctx.fillText(text, 15, titleY);
+  if (nodeType === 'node') {
+    ctx.fillStyle = s.titleFill;
+    ctx.font = '600 14px Inter, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 15, titleY);
+  }
 
   // Close icon
   ctx.fillStyle = '#ef4444';

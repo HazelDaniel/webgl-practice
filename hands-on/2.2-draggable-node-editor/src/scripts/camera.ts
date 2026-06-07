@@ -45,6 +45,17 @@ export class Camera {
   }
 
   /**
+   * Convert a world-space coordinate to a screen-space coordinate.
+   * Used for floating DOM or Canvas overlay rendering.
+   */
+  worldToScreen(wx: number, wy: number): { x: number; y: number } {
+    return {
+      x: wx * this.zoom + this.panX,
+      y: wy * this.zoom + this.panY,
+    };
+  }
+
+  /**
    * Compute and return the current view matrix.
    * The matrix is: Translate(panX, panY) * Scale(zoom, zoom, 1).
    */

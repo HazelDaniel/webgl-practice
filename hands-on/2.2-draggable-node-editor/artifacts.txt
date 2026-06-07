@@ -1,0 +1,2 @@
+optimization plan:
+~/.gemini/antigravity/brain/18a10a95-78d7-495e-b8f4-1c07769d580d/implementation_plan.md

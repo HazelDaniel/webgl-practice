@@ -74,10 +74,16 @@ export class NodeEditor {
     const backgroundCanvas = document.getElementById(
       backgroundCanvasId
     ) as HTMLCanvasElement;
+    const labelCanvas = document.getElementById(
+      "2d-label-canvas"
+    ) as HTMLCanvasElement;
+
     if (!canvas) throw new Error(`Canvas "${canvasId}" not found`);
     if (!textCanvas) throw new Error(`Canvas "${textCanvasId}" not found`);
     if (!backgroundCanvas)
       throw new Error(`Canvas "${backgroundCanvasId}" not found`);
+    if (!labelCanvas)
+      throw new Error(`Canvas "2d-label-canvas" not found`);
 
     const gl = canvas.getContext("webgl2") as WebGL2RenderingContext;
     if (!gl) throw new Error("WebGL2 is not supported in this browser");
@@ -98,7 +104,7 @@ export class NodeEditor {
 
     //prettier-ignore
     this.renderer = new Renderer(gl, canvas, backgroundCanvas, program, locations,
-      geometry, bgGeometry, this.store, this.camera, bgProgram, bgLocations,
+      geometry, bgGeometry, this.store, this.camera, bgProgram, bgLocations, labelCanvas,
       () => this.bgColor,
     );
 
