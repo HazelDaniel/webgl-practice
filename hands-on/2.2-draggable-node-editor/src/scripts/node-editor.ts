@@ -10,18 +10,31 @@ import { NodeStore } from "./node-store.js";
 import { Renderer } from "./renderer.js";
 import { UIControls } from "./controls.js";
 import {
+  ConnectionMode,
+  NodeEditorConfig,
   NodeData,
+  NodeHandleData,
   ThemeName,
   NodeType,
+  DEFAULT_HANDLE_STYLE,
   NODE_LAYOUT,
+  isCandidateNodeType,
   isContainerNodeType,
 } from "./types.js";
+import { HandleHit, getHandleScreenGeometry, isPointInsideHandle } from "./handle-geometry.js";
 import { getWorldPosition } from "./scene-graph.js";
 
 interface DragSnapshot {
   localX: number;
   localY: number;
   parentId: number | null;
+}
+
+interface ConnectionDragState {
+  sourceNodeId: number;
+  sourceHandle: NodeHandleData;
+  screenX: number;
+  screenY: number;
 }
 
 /**
@@ -45,6 +58,9 @@ export class NodeEditor {
   private isPanning: boolean = false;
   private lastMouseX: number = 0;
   private lastMouseY: number = 0;
+  private connectionMode: ConnectionMode;
+  private activeConnectionDrag: ConnectionDragState | null = null;
+  private hoveredHandle: HandleHit | null = null;
 
   private static _instance: NodeEditor | null = null;
 
@@ -55,7 +71,8 @@ export class NodeEditor {
     vsSource: string,
     fsSource: string,
     bgVsSource: string,
-    bgFsSource: string
+    bgFsSource: string,
+    options: NodeEditorConfig = {}
   ): NodeEditor {
     if (this._instance) return this._instance;
     this._instance = new NodeEditor(
@@ -65,7 +82,8 @@ export class NodeEditor {
       vsSource,
       fsSource,
       bgVsSource,
-      bgFsSource
+      bgFsSource,
+      options
     );
     return this._instance;
   }
@@ -77,7 +95,8 @@ export class NodeEditor {
     vsSource: string,
     fsSource: string,
     bgVsSource: string,
-    bgFsSource: string
+    bgFsSource: string,
+    options: NodeEditorConfig = {}
   ) {
     const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
     const textCanvas = document.getElementById(textCanvasId) as HTMLCanvasElement;
@@ -103,9 +122,16 @@ export class NodeEditor {
     const bgLocations = getBGShaderLocations(gl, bgProgram);
     const geometry = new GeometryNode(gl, "rounded-square");
     const bgGeometry = new BGGeometryNode(gl, "dotted", backgroundCanvas);
+    this.connectionMode = options.connectionMode ?? "node";
 
     this.camera = new Camera();
-    this.store = new NodeStore(gl, textCtx, textCanvas);
+    this.store = new NodeStore(
+      gl,
+      textCtx,
+      textCanvas,
+      this.connectionMode,
+      options.handleStyle ?? DEFAULT_HANDLE_STYLE
+    );
     this.pickFBO = new PickFBO(gl, canvas.width, canvas.height);
 
     //prettier-ignore
@@ -148,6 +174,11 @@ export class NodeEditor {
 
   render(): void {
     this.renderer.startLoop();
+  }
+
+  setConnectionMode(connectionMode: ConnectionMode): void {
+    this.connectionMode = connectionMode;
+    this.store.setConnectionMode(connectionMode);
   }
 
   private handleResize(canvas: HTMLCanvasElement): void {
@@ -229,6 +260,40 @@ export class NodeEditor {
     return pixels[0] + (pixels[1] << 8) + (pixels[2] << 16);
   }
 
+  private hitTestHandle(screenX: number, screenY: number): HandleHit | null {
+    const visibleNodes = this.store.visibleNodes();
+
+    for (let i = visibleNodes.length - 1; i >= 0; i--) {
+      const node = visibleNodes[i];
+      if (!isCandidateNodeType(node.nodeType, this.connectionMode)) continue;
+      if (node.handles.length === 0) continue;
+
+      const { x, y } = getWorldPosition(node.id, this.store.allNodesMap);
+
+      for (const handle of node.handles) {
+        const geometry = getHandleScreenGeometry(
+          x,
+          y,
+          node,
+          handle,
+          this.camera.zoom,
+          this.camera.panX,
+          this.camera.panY
+        );
+
+        if (isPointInsideHandle(screenX, screenY, geometry)) {
+          return {
+            nodeId: node.id,
+            handle,
+            geometry,
+          };
+        }
+      }
+    }
+
+    return null;
+  }
+
   private getHoveredContainer(
     screenX: number,
     screenY: number,
@@ -306,6 +371,21 @@ export class NodeEditor {
     const { left, top } = canvas.getBoundingClientRect();
     const screenX = e.clientX - left;
     const screenY = e.clientY - top;
+
+    const handleHit = this.hitTestHandle(screenX, screenY);
+    if (handleHit) {
+      this.activeConnectionDrag = {
+        sourceNodeId: handleHit.nodeId,
+        sourceHandle: handleHit.handle,
+        screenX,
+        screenY,
+      };
+      this.hoveredHandle = handleHit;
+      this.draggingNode = null;
+      this.dragSnapshot = null;
+      return;
+    }
+
     const nodeId = this.pick(screenX, screenY);
     const node = this.store.get(nodeId);
 
@@ -314,6 +394,7 @@ export class NodeEditor {
       this.controls.hideProperties();
       this.draggingNode = null;
       this.dragSnapshot = null;
+      this.hoveredHandle = null;
       this.syncToolbarState();
       this.startPan(e.clientX, e.clientY);
       return;
@@ -330,22 +411,23 @@ export class NodeEditor {
       : NODE_LAYOUT.headerHeight / 2;
     const closeDx = localClickX - closeX;
     const closeDy = localClickY - closeY;
-    if (
-      closeDx * closeDx + closeDy * closeDy <=
-      NODE_LAYOUT.closeBtnClickRadius * NODE_LAYOUT.closeBtnClickRadius
-    ) {
+      if (
+        closeDx * closeDx + closeDy * closeDy <=
+        NODE_LAYOUT.closeBtnClickRadius * NODE_LAYOUT.closeBtnClickRadius
+      ) {
       const parentId = node.parentId;
       this.store.remove(node.id);
       if (parentId !== null) {
         this.refreshContainerChain(parentId);
       }
-      this.store.deselectAll();
-      this.controls.hideProperties();
-      this.draggingNode = null;
-      this.dragSnapshot = null;
-      this.syncToolbarState();
-      return;
-    }
+        this.store.deselectAll();
+        this.controls.hideProperties();
+        this.draggingNode = null;
+        this.dragSnapshot = null;
+        this.hoveredHandle = null;
+        this.syncToolbarState();
+        return;
+      }
 
     if (node.nodeType === "node" || node.nodeType === "composition-child" || node.nodeType === "group") {
       const editX = node.width - NODE_LAYOUT.editBtnPaddingRight;
@@ -361,6 +443,7 @@ export class NodeEditor {
         this.store.deselectAll();
         node.isSelected = true;
         this.controls.showProperties(node.text);
+        this.hoveredHandle = null;
         this.syncToolbarState();
         return;
       }
@@ -385,6 +468,7 @@ export class NodeEditor {
         if (this.store.setParent(child.id, node.id)) {
           this.refreshContainerChain(node.id);
         }
+        this.hoveredHandle = null;
         this.syncToolbarState();
         return;
       }
@@ -393,6 +477,7 @@ export class NodeEditor {
     this.store.deselectAll();
     this.controls.hideProperties();
     node.isSelected = true;
+    this.hoveredHandle = null;
     this.draggingNode = node;
     this.dragSnapshot = {
       localX: node.localX,
@@ -418,11 +503,19 @@ export class NodeEditor {
       return;
     }
 
-    if (!this.draggingNode) return;
-
     const { left, top } = canvas.getBoundingClientRect();
     const screenX = e.clientX - left;
     const screenY = e.clientY - top;
+
+    if (this.activeConnectionDrag) {
+      this.activeConnectionDrag.screenX = screenX;
+      this.activeConnectionDrag.screenY = screenY;
+      this.hoveredHandle = this.hitTestHandle(screenX, screenY);
+      return;
+    }
+
+    if (!this.draggingNode) return;
+
     const { x: worldX, y: worldY } = this.camera.screenToWorld(screenX, screenY);
     const targetX = worldX - this.dragOffsetX;
     const targetY = worldY - this.dragOffsetY;
@@ -450,6 +543,13 @@ export class NodeEditor {
 
   private handleMouseUp(e: MouseEvent, canvas: HTMLCanvasElement): void {
     this.isPanning = false;
+
+    if (this.activeConnectionDrag) {
+      this.activeConnectionDrag = null;
+      this.hoveredHandle = null;
+      this.syncToolbarState();
+      return;
+    }
 
     if (this.draggingNode && this.dragSnapshot) {
       const { left, top } = canvas.getBoundingClientRect();

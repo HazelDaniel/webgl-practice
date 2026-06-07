@@ -1,8 +1,14 @@
-import { NodeData, NodeShaderLocations, BGShaderLocations } from "./types.js";
+import {
+  NodeData,
+  NodeShaderLocations,
+  BGShaderLocations,
+} from "./types.js";
 import { BGGeometryNode, GeometryNode } from "./geometry.js";
 import { Camera } from "./camera.js";
 import { NodeStore } from "./node-store.js";
 import { getWorldPosition } from "./scene-graph.js";
+import { drawHandle } from "./texture.js";
+import { getHandleScreenGeometry } from "./handle-geometry.js";
 
 /**
  * Owns the WebGL draw loop and all rendering logic.
@@ -60,32 +66,48 @@ export class Renderer {
     // gl.clearColor(0.0, 0.0, 0.0, 0.0);
     // gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     this.drawNodes(false);
-    this.drawFloatingLabels();
+    this.drawOverlay();
   }
 
-  private drawFloatingLabels(): void {
+  private drawOverlay(): void {
     if (!this.labelCtx) return;
     this.labelCtx.clearRect(0, 0, this.labelCanvas.width, this.labelCanvas.height);
-    
-    // Group labels
+
+    for (const node of this.store.visibleNodes()) {
+      this.drawHandles(node);
+    }
+
     this.labelCtx.font = '600 14px Inter, sans-serif';
     this.labelCtx.textBaseline = 'middle';
-    
+
     for (const node of this.store.visibleNodes()) {
-      if (node.nodeType === 'group') {
-        const { x, y } = getWorldPosition(node.id, this.store.allNodesMap);
-        // Project group's top-left world pos to screen pos
-        const screenPos = this.camera.worldToScreen(x, y);
-        
-        // We want the text to be 15px from the left and 20px from the top (matches texture offset)
-        // Since the canvas is overlaid, we just draw at the screen pos + these offsets
-        
-        // Dark theme gets white text, others might be different, let's just use text-main for now
-        // Or we could read from the node.theme but store doesn't keep theme per-node.
-        // The texture uses titleFill. Let's just use white for now since group labels are floating.
-        this.labelCtx.fillStyle = '#f8fafc'; 
-        this.labelCtx.fillText(node.text, screenPos.x + 15, screenPos.y + 20);
-      }
+      if (node.nodeType !== 'group') continue;
+
+      const { x, y } = getWorldPosition(node.id, this.store.allNodesMap);
+      const screenPos = this.camera.worldToScreen(x, y);
+      this.labelCtx.fillStyle = '#f8fafc';
+      this.labelCtx.fillText(node.text, screenPos.x + 15, screenPos.y + 20);
+    }
+  }
+
+  private drawHandles(node: NodeData): void {
+    if (!this.labelCtx || node.handles.length === 0) return;
+
+    const { x, y } = getWorldPosition(node.id, this.store.allNodesMap);
+    const zoom = this.camera.zoom;
+    const { panX, panY } = this.camera;
+
+    for (const handle of node.handles) {
+      const geometry = getHandleScreenGeometry(
+        x,
+        y,
+        node,
+        handle,
+        zoom,
+        panX,
+        panY
+      );
+      drawHandle(this.labelCtx, handle, geometry.centerX, geometry.centerY);
     }
   }
 

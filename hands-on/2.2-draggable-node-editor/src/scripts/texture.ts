@@ -1,4 +1,10 @@
-import { ThemeName, NodeType, NODE_LAYOUT, isContainerNodeType } from './types.js';
+import {
+  NODE_LAYOUT,
+  NodeHandleData,
+  NodeType,
+  ThemeName,
+  isContainerNodeType,
+} from './types.js';
 
 interface ThemeStyle {
   bgFill: string;
@@ -7,6 +13,38 @@ interface ThemeStyle {
   titleFill: string;
   bodyFill: string;
   borderWidth: number;
+}
+
+export function drawHandle(
+  ctx: CanvasRenderingContext2D,
+  handle: NodeHandleData,
+  x: number,
+  y: number
+): void {
+  const { style, isConnected } = handle;
+  const radius = style.size / 2;
+  const borderColor = isConnected
+    ? style.connectedBorderColor
+    : style.disconnectedBorderColor;
+
+  ctx.save();
+  ctx.fillStyle = style.backgroundColor;
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = style.borderWidth;
+
+  if (style.shape === 'circle') {
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.rect(x - radius, y - radius, style.size, style.size);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  ctx.restore();
 }
 
 const NODE_THEMES: Record<ThemeName, ThemeStyle> = {

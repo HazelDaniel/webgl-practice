@@ -4,6 +4,31 @@ export type BGGeometryMeshType = 'dotted' | 'grid';
 export type NodeType = 'node' | 'group' | 'composition' | 'composition-child';
 export type ContainerNodeType = 'group' | 'composition';
 export type LeafNodeType = 'node' | 'composition-child';
+export type CandidateNodeType = Exclude<NodeType, 'composition-child'>;
+export type ConnectionMode = 'group' | 'node';
+export type HandleSide = 'left' | 'right';
+export type HandleShape = 'circle' | 'square';
+
+export interface HandleStyle {
+  shape: HandleShape;
+  backgroundColor: string;
+  connectedBorderColor: string;
+  disconnectedBorderColor: string;
+  borderWidth: number;
+  size: number;
+}
+
+export interface NodeHandleData {
+  candidateId: number;
+  side: HandleSide;
+  isConnected: boolean;
+  style: HandleStyle;
+}
+
+export interface NodeEditorConfig {
+  connectionMode?: ConnectionMode;
+  handleStyle?: HandleStyle;
+}
 
 export const NODE_LAYOUT = {
   headerHeight: 30,
@@ -13,6 +38,20 @@ export const NODE_LAYOUT = {
   editBtnClickRadius: 15,
   plusBtnPaddingBottom: 20,
   plusBtnClickRadius: 12,
+};
+
+export const HANDLE_LAYOUT = {
+  sideInset: 8,
+  offsetX: -2,
+};
+
+export const DEFAULT_HANDLE_STYLE: HandleStyle = {
+  shape: 'circle',
+  backgroundColor: 'rgba(148, 163, 184, 0.95)',
+  connectedBorderColor: 'rgba(34, 197, 94, 1)',
+  disconnectedBorderColor: 'rgba(148, 163, 184, 0.85)',
+  borderWidth: 2,
+  size: 12,
 };
 
 export const NODE_SIZE = {
@@ -28,6 +67,17 @@ export function isContainerNodeType(nodeType: NodeType): nodeType is ContainerNo
 
 export function isLeafNodeType(nodeType: NodeType): nodeType is LeafNodeType {
   return nodeType === 'node' || nodeType === 'composition-child';
+}
+
+export function isCandidateNodeType(
+  nodeType: NodeType,
+  connectionMode: ConnectionMode
+): nodeType is CandidateNodeType {
+  if (connectionMode === 'group') {
+    return nodeType === 'group';
+  }
+
+  return nodeType === 'node' || nodeType === 'composition';
 }
 
 export function getDefaultNodeSize(nodeType: NodeType): { width: number; height: number } {
@@ -77,4 +127,6 @@ export interface NodeData {
   parentId: number | null;
   /** Scene graph: ordered list of child node ids. */
   childIds: number[];
+  /** Handle metadata for nodes that can participate in connections. */
+  handles: NodeHandleData[];
 }

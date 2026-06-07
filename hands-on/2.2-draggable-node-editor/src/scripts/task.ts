@@ -9,7 +9,16 @@ function init(): void {
 
   if (!vsSource || !fsSource) throw new Error('Shader source missing from DOM');
   if (!BGvsSource || !BGfsSource) throw new Error('Background shader source missing from DOM');
-  NodeEditor.create('webgl-canvas', '2d-text-canvas', '2d-bg-canvas', vsSource, fsSource, BGvsSource, BGfsSource).render();
+  NodeEditor.create(
+    'webgl-canvas',
+    '2d-text-canvas',
+    '2d-bg-canvas',
+    vsSource,
+    fsSource,
+    BGvsSource,
+    BGfsSource,
+    { connectionMode: 'node' }
+  ).render();
 }
 
 document.addEventListener('DOMContentLoaded', init);

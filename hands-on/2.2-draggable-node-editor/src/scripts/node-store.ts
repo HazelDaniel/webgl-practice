@@ -1,6 +1,11 @@
 import {
+  ConnectionMode,
+  DEFAULT_HANDLE_STYLE,
+  HandleStyle,
+  NodeHandleData,
   getDefaultNodeSize,
   isContainerNodeType,
+  isCandidateNodeType,
   NodeData,
   ThemeName,
   NodeType,
@@ -21,13 +26,20 @@ export class NodeStore {
   readonly nodes: Map<number, NodeData> = new Map();
   private _nextId: number = 0;
   private a11yTree: AccessibilityTree;
+  private connectionMode: ConnectionMode;
+  private handleStyle: HandleStyle;
+  private currentTheme: ThemeName = 'dark';
 
   constructor(
     private gl: WebGL2RenderingContext,
     private ctx: CanvasRenderingContext2D,
-    private textCanvas: HTMLCanvasElement
+    private textCanvas: HTMLCanvasElement,
+    connectionMode: ConnectionMode = 'node',
+    handleStyle: HandleStyle = DEFAULT_HANDLE_STYLE
   ) {
     this.a11yTree = new AccessibilityTree();
+    this.connectionMode = connectionMode;
+    this.handleStyle = { ...handleStyle };
   }
 
   /** The id that the next call to add() will assign. Useful for labelling. */
@@ -78,6 +90,22 @@ export class NodeStore {
 
     this.insertNode(node);
     return node;
+  }
+
+  setConnectionMode(connectionMode: ConnectionMode): void {
+    if (this.connectionMode === connectionMode) return;
+    this.connectionMode = connectionMode;
+
+    for (const node of this.allNodesMap.values()) {
+      node.handles = this.createHandleState(node.id, node.nodeType, node.handles);
+    }
+  }
+
+  setHandleStyle(handleStyle: HandleStyle): void {
+    this.handleStyle = { ...handleStyle };
+    for (const node of this.allNodesMap.values()) {
+      node.handles = this.createHandleState(node.id, node.nodeType, node.handles);
+    }
   }
 
   /**
@@ -169,19 +197,8 @@ export class NodeStore {
 
   /** Rebuild textures for all nodes under a new theme. */
   regenerateTextures(theme: ThemeName): void {
-    const regen = (node: NodeData) => {
-      this.gl.deleteTexture(node.texture);
-      node.texture = createTextTexture(
-        this.gl,
-        this.ctx,
-        this.textCanvas,
-        node.text,
-        node.width,
-        node.height,
-        theme,
-        node.nodeType
-      );
-    };
+    this.currentTheme = theme;
+    const regen = (node: NodeData) => this.refreshNodeTexture(node, theme);
     this.groups.forEach(regen);
     this.nodes.forEach(regen);
   }
@@ -191,21 +208,26 @@ export class NodeStore {
     const node = this.get(id);
     if (!node) return;
     node.text = newLabel;
-
-    const oldTex = node.texture;
-    node.texture = createTextTexture(
-      this.gl,
-      this.ctx,
-      this.textCanvas,
-      newLabel,
-      node.width,
-      node.height,
-      theme,
-      node.nodeType
-    );
-    this.gl.deleteTexture(oldTex);
+    this.currentTheme = theme;
+    this.refreshNodeTexture(node, theme);
 
     this.a11yTree.updateLabel(id, newLabel, node.nodeType);
+  }
+
+  updateHandleConnectionState(
+    nodeId: number,
+    side: NodeHandleData['side'],
+    isConnected: boolean,
+    theme?: ThemeName
+  ): void {
+    const node = this.get(nodeId);
+    if (!node) return;
+
+    const handle = node.handles.find((entry) => entry.side === side);
+    if (!handle || handle.isConnected === isConnected) return;
+
+    handle.isConnected = isConnected;
+    this.refreshNodeTexture(node, theme ?? this.currentTheme);
   }
 
   /** Assign a new parent to a child node, preserving world position. */
@@ -355,6 +377,37 @@ export class NodeStore {
     this.a11yTree.addNode(node.id, node.text, node.nodeType);
   }
 
+  private refreshNodeTexture(node: NodeData, theme?: ThemeName): void {
+    const oldTexture = node.texture;
+    node.texture = createTextTexture(
+      this.gl,
+      this.ctx,
+      this.textCanvas,
+      node.text,
+      node.width,
+      node.height,
+      theme ?? this.currentTheme,
+      node.nodeType
+    );
+    this.gl.deleteTexture(oldTexture);
+  }
+
+  private createHandleState(
+    candidateId: number,
+    nodeType: NodeType,
+    existingHandles: NodeHandleData[] = []
+  ): NodeHandleData[] {
+    if (!isCandidateNodeType(nodeType, this.connectionMode)) return [];
+
+    return (['left', 'right'] as const).map((side) => ({
+      candidateId,
+      side,
+      isConnected:
+        existingHandles.find((handle) => handle.side === side)?.isConnected ?? false,
+      style: { ...this.handleStyle },
+    }));
+  }
+
   private createNodeRecord(params: {
     id: number;
     localX: number;
@@ -387,6 +440,7 @@ export class NodeStore {
     const r = id & 0xff;
     const g = (id >> 8) & 0xff;
     const b = (id >> 16) & 0xff;
+    const handles = this.createHandleState(id, nodeType);
 
     return {
       id,
@@ -412,6 +466,7 @@ export class NodeStore {
       childIds: [],
       nodeType,
       isDropTarget,
+      handles,
     };
   }
 }
