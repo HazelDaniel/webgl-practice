@@ -1,18 +1,23 @@
-import { NodeData, ThemeName, NodeType } from './types.js';
+import {
+  getDefaultNodeSize,
+  isContainerNodeType,
+  NodeData,
+  ThemeName,
+  NodeType,
+} from './types.js';
 import { createTextTexture } from './texture.js';
-import { reparent } from './scene-graph.js';
+import { getWorldPosition, reparent } from './scene-graph.js';
 import { AccessibilityTree } from './accessibility.js';
 
 /**
- * Owns the canonical node list. Groups and regular nodes are stored
- * in separate Maps so that render order is always:
- *   groups first (back) → nodes second (front)
- * This guarantees children are always clickable on top of their parent group.
+ * Owns the canonical node list.
+ * Groups, compositions, and leaf nodes are stored in separate z-order buckets
+ * so the renderer can keep compositions above groups without changing layout.
  */
 export class NodeStore {
-  /** Group nodes — drawn first (behind everything). */
+  /** Group nodes — drawn first (behind compositions and leaves). */
   readonly groups: Map<number, NodeData> = new Map();
-  /** Regular nodes — drawn second (in front of groups). */
+  /** Leaf nodes — drawn last (in front of groups and compositions). */
   readonly nodes: Map<number, NodeData> = new Map();
   private _nextId: number = 0;
   private a11yTree: AccessibilityTree;
@@ -31,13 +36,13 @@ export class NodeStore {
   }
 
   /**
-   * Returns a combined Map view of all nodes (groups + regular).
+   * Returns a combined Map view of all nodes (containers + leaves).
    * Used by scene-graph functions that need to traverse the full tree.
    */
   get allNodesMap(): Map<number, NodeData> {
     const combined = new Map<number, NodeData>();
-    this.groups.forEach((n, id) => combined.set(id, n));
-    this.nodes.forEach((n, id) => combined.set(id, n));
+    this.groups.forEach((node, id) => combined.set(id, node));
+    this.nodes.forEach((node, id) => combined.set(id, node));
     return combined;
   }
 
@@ -46,77 +51,90 @@ export class NodeStore {
     return this.nodes.get(id) ?? this.groups.get(id);
   }
 
-  /** Create a new root node at world coordinates (localX, localY). */
-  add(localX: number, localY: number, text: string, theme: ThemeName, nodeType: NodeType = 'node'): NodeData {
-    const id = ++this._nextId;
-    const width = nodeType === 'group' ? 240 : 180;
-    const height = nodeType === 'group' ? 200 : 150;
+  /** Create a new node at world coordinates (localX, localY). */
+  add(
+    localX: number,
+    localY: number,
+    text: string,
+    theme: ThemeName,
+    nodeType: NodeType = 'node',
+    idOverride?: number
+  ): NodeData {
+    const id = idOverride ?? ++this._nextId;
+    this._nextId = Math.max(this._nextId, id);
 
-    // Encode id as RGB for the pick texture (up to 16.7 million unique nodes)
-    const r = id & 0xff;
-    const g = (id >> 8) & 0xff;
-    const b = (id >> 16) & 0xff;
-
-    const node: NodeData = {
+    const { width, height } = getDefaultNodeSize(nodeType);
+    const node = this.createNodeRecord({
       id,
       localX,
       localY,
       width,
       height,
       text,
-      texture: createTextTexture(this.gl, this.ctx, this.textCanvas, text, width, height, theme, nodeType),
-      pickColor: [r / 255, g / 255, b / 255],
-      isSelected: false,
-      visible: true,
-      parentId: null,
-      childIds: [],
+      theme,
       nodeType,
-      isDropTarget: false,
-    };
+      parentId: null,
+    });
 
-    if (nodeType === 'group') {
-      this.groups.set(id, node);
-    } else {
-      this.nodes.set(id, node);
-    }
-    
-    this.a11yTree.addNode(id, text, nodeType);
+    this.insertNode(node);
     return node;
   }
 
   /**
+   * Duplicate a normal node into a composition as a composition-child.
+   * The source node remains untouched; the clone is returned so callers can
+   * select or further manipulate it.
+   */
+  duplicateIntoComposition(
+    sourceId: number,
+    compositionId: number,
+    theme: ThemeName
+  ): NodeData | null {
+    const source = this.get(sourceId);
+    const composition = this.get(compositionId);
+    if (!source || !composition) return null;
+    if (source.nodeType !== 'node') return null;
+    if (composition.nodeType !== 'composition') return null;
+
+    const world = getWorldPosition(source.id, this.allNodesMap);
+    const clone = this.add(world.x, world.y, source.text, theme, 'composition-child');
+    if (!this.setParent(clone.id, composition.id)) {
+      this.remove(clone.id);
+      return null;
+    }
+
+    this.updateContainerBounds(composition.id, theme);
+    return clone;
+  }
+
+  /**
    * Remove a node and free its GPU texture.
-   * Any children of the deleted node are promoted to the deleted node's
-   * parent (or to the root if it had none), preserving their world position.
+   * Container nodes cascade to their descendants. Leaf nodes still keep the
+   * old promotion path as a safety net for future leaf variants.
    */
   remove(id: number): void {
     const node = this.get(id);
     if (!node) return;
 
-    const allNodes = this.allNodesMap;
-
-    if (node.nodeType === 'group') {
-      // Cascading deletion: recursively delete children
+    if (isContainerNodeType(node.nodeType)) {
       const childrenToRemove = [...node.childIds];
       for (const childId of childrenToRemove) {
         this.remove(childId);
       }
     } else {
-      // Promote children before removal so reparent() can still find the node
+      const allNodes = this.allNodesMap;
       const childrenToReparent = [...node.childIds];
       for (const childId of childrenToReparent) {
         reparent(childId, node.parentId, allNodes);
-        // Sync the reparented child back into the correct map
         const child = allNodes.get(childId);
         if (child) this.syncToMap(child);
       }
     }
 
-    // Detach from parent's childIds list
     if (node.parentId !== null) {
       const parent = this.get(node.parentId);
       if (parent) {
-        parent.childIds = parent.childIds.filter((cid) => cid !== id);
+        parent.childIds = parent.childIds.filter((childId) => childId !== id);
       }
     }
 
@@ -128,21 +146,25 @@ export class NodeStore {
 
   /** Returns the currently selected node, if any. */
   getSelected(): NodeData | undefined {
-    for (const n of this.groups.values()) { if (n.isSelected) return n; }
-    for (const n of this.nodes.values())  { if (n.isSelected) return n; }
+    for (const node of this.groups.values()) {
+      if (node.isSelected) return node;
+    }
+    for (const node of this.nodes.values()) {
+      if (node.isSelected) return node;
+    }
     return undefined;
   }
 
   /** Deselect every node. */
   deselectAll(): void {
-    this.groups.forEach((n) => (n.isSelected = false));
-    this.nodes.forEach((n) => (n.isSelected = false));
+    this.groups.forEach((node) => (node.isSelected = false));
+    this.nodes.forEach((node) => (node.isSelected = false));
   }
 
   /** Clear isDropTarget on every node. */
   clearDropTargets(): void {
-    this.groups.forEach((n) => (n.isDropTarget = false));
-    this.nodes.forEach((n) => (n.isDropTarget = false));
+    this.groups.forEach((node) => (node.isDropTarget = false));
+    this.nodes.forEach((node) => (node.isDropTarget = false));
   }
 
   /** Rebuild textures for all nodes under a new theme. */
@@ -150,8 +172,14 @@ export class NodeStore {
     const regen = (node: NodeData) => {
       this.gl.deleteTexture(node.texture);
       node.texture = createTextTexture(
-        this.gl, this.ctx, this.textCanvas,
-        node.text, node.width, node.height, theme, node.nodeType
+        this.gl,
+        this.ctx,
+        this.textCanvas,
+        node.text,
+        node.width,
+        node.height,
+        theme,
+        node.nodeType
       );
     };
     this.groups.forEach(regen);
@@ -163,11 +191,20 @@ export class NodeStore {
     const node = this.get(id);
     if (!node) return;
     node.text = newLabel;
-    
+
     const oldTex = node.texture;
-    node.texture = createTextTexture(this.gl, this.ctx, this.textCanvas, newLabel, node.width, node.height, theme, node.nodeType);
+    node.texture = createTextTexture(
+      this.gl,
+      this.ctx,
+      this.textCanvas,
+      newLabel,
+      node.width,
+      node.height,
+      theme,
+      node.nodeType
+    );
     this.gl.deleteTexture(oldTex);
-    
+
     this.a11yTree.updateLabel(id, newLabel, node.nodeType);
   }
 
@@ -176,68 +213,205 @@ export class NodeStore {
     return reparent(childId, newParentId, this.allNodesMap);
   }
 
+  /** Restore a node to an exact local position and parent. */
+  restoreNodePlacement(
+    childId: number,
+    localX: number,
+    localY: number,
+    parentId: number | null
+  ): boolean {
+    const node = this.get(childId);
+    if (!node) return false;
+
+    if (parentId !== null) {
+      const parent = this.get(parentId);
+      if (!parent || !isContainerNodeType(parent.nodeType)) return false;
+    }
+
+    if (node.parentId !== null) {
+      const currentParent = this.get(node.parentId);
+      if (currentParent) {
+        currentParent.childIds = currentParent.childIds.filter(
+          (id) => id !== childId
+        );
+      }
+    }
+
+    node.localX = localX;
+    node.localY = localY;
+    node.parentId = parentId;
+
+    if (parentId !== null) {
+      const parent = this.get(parentId);
+      if (parent && !parent.childIds.includes(childId)) {
+        parent.childIds.push(childId);
+      }
+    }
+
+    return true;
+  }
+
   /**
-   * All visible nodes in render order: groups first, then regular nodes.
-   * This ensures groups are always behind their children in the z-stack.
+   * All visible nodes in render order:
+   * groups first, compositions second, leaves last.
    */
   visibleNodes(): NodeData[] {
     const result: NodeData[] = [];
-    this.groups.forEach((n) => { if (n.visible) result.push(n); });
-    this.nodes.forEach((n) =>  { if (n.visible) result.push(n); });
+    this.groups.forEach((node) => {
+      if (node.visible && node.nodeType === 'group') result.push(node);
+    });
+    this.groups.forEach((node) => {
+      if (node.visible && node.nodeType === 'composition') result.push(node);
+    });
+    this.nodes.forEach((node) => {
+      if (node.visible) result.push(node);
+    });
     return result;
   }
 
-  /** Re-calculates bounds of a group node based on its children, and centers children. */
-  updateGroupBounds(groupId: number, theme: ThemeName): void {
-    const group = this.groups.get(groupId);
-    if (!group || group.nodeType !== 'group') return;
+  /** Re-calculates bounds of a container node based on its children. */
+  updateContainerBounds(containerId: number, theme: ThemeName): void {
+    const container = this.groups.get(containerId);
+    if (!container || !isContainerNodeType(container.nodeType)) return;
 
-    if (group.childIds.length === 0) {
-      group.width = 240;
-      group.height = 200;
-      this.gl.deleteTexture(group.texture);
-      group.texture = createTextTexture(this.gl, this.ctx, this.textCanvas, group.text, group.width, group.height, theme, group.nodeType);
+    const defaultSize = getDefaultNodeSize(container.nodeType);
+    if (container.childIds.length === 0) {
+      container.width = defaultSize.width;
+      container.height = defaultSize.height;
+      this.gl.deleteTexture(container.texture);
+      container.texture = createTextTexture(
+        this.gl,
+        this.ctx,
+        this.textCanvas,
+        container.text,
+        container.width,
+        container.height,
+        theme,
+        container.nodeType
+      );
       return;
     }
 
     const paddingX = 20;
-    const paddingY = 50; // top padding for header
+    const paddingY = 50;
     const paddingBottom = 40;
     const gapY = 10;
 
     let totalChildHeight = 0;
     let maxChildWidth = 0;
 
-    const children = group.childIds.map(id => this.get(id)!).filter(Boolean);
+    const children = container.childIds
+      .map((id) => this.get(id))
+      .filter((node): node is NodeData => Boolean(node));
+
     for (const child of children) {
       maxChildWidth = Math.max(maxChildWidth, child.width);
       totalChildHeight += child.height;
     }
     totalChildHeight += Math.max(0, children.length - 1) * gapY;
 
-    // Update group bounds
-    group.width = Math.max(240, maxChildWidth + paddingX * 2);
-    group.height = Math.max(200, totalChildHeight + paddingY + paddingBottom);
+    container.width = Math.max(defaultSize.width, maxChildWidth + paddingX * 2);
+    container.height = Math.max(
+      defaultSize.height,
+      totalChildHeight + paddingY + paddingBottom
+    );
 
-    // Second pass: center children
     let currentY = paddingY;
     for (const child of children) {
-      child.localX = (group.width - child.width) / 2;
+      child.localX = (container.width - child.width) / 2;
       child.localY = currentY;
       currentY += child.height + gapY;
     }
 
-    // Regenerate texture
-    this.gl.deleteTexture(group.texture);
-    group.texture = createTextTexture(this.gl, this.ctx, this.textCanvas, group.text, group.width, group.height, theme, group.nodeType);
+    this.gl.deleteTexture(container.texture);
+    container.texture = createTextTexture(
+      this.gl,
+      this.ctx,
+      this.textCanvas,
+      container.text,
+      container.width,
+      container.height,
+      theme,
+      container.nodeType
+    );
+  }
+
+  /** Compatibility wrapper for the previous group-specific API. */
+  updateGroupBounds(groupId: number, theme: ThemeName): void {
+    this.updateContainerBounds(groupId, theme);
   }
 
   /** Ensure a node is stored in the correct map based on its nodeType. */
   private syncToMap(node: NodeData): void {
-    if (node.nodeType === 'group') {
+    if (isContainerNodeType(node.nodeType)) {
       this.groups.set(node.id, node);
     } else {
       this.nodes.set(node.id, node);
     }
+  }
+
+  private insertNode(node: NodeData): void {
+    this.syncToMap(node);
+    this.a11yTree.addNode(node.id, node.text, node.nodeType);
+  }
+
+  private createNodeRecord(params: {
+    id: number;
+    localX: number;
+    localY: number;
+    width: number;
+    height: number;
+    text: string;
+    theme: ThemeName;
+    nodeType: NodeType;
+    parentId: number | null;
+    visible?: boolean;
+    isSelected?: boolean;
+    isDropTarget?: boolean;
+  }): NodeData {
+    const {
+      id,
+      localX,
+      localY,
+      width,
+      height,
+      text,
+      theme,
+      nodeType,
+      parentId,
+      visible = true,
+      isSelected = false,
+      isDropTarget = false,
+    } = params;
+
+    const r = id & 0xff;
+    const g = (id >> 8) & 0xff;
+    const b = (id >> 16) & 0xff;
+
+    return {
+      id,
+      localX,
+      localY,
+      width,
+      height,
+      text,
+      texture: createTextTexture(
+        this.gl,
+        this.ctx,
+        this.textCanvas,
+        text,
+        width,
+        height,
+        theme,
+        nodeType
+      ),
+      pickColor: [r / 255, g / 255, b / 255],
+      isSelected,
+      visible,
+      parentId,
+      childIds: [],
+      nodeType,
+      isDropTarget,
+    };
   }
 }

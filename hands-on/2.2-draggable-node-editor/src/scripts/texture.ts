@@ -1,4 +1,4 @@
-import { ThemeName, NodeType, NODE_LAYOUT } from './types.js';
+import { ThemeName, NodeType, NODE_LAYOUT, isContainerNodeType } from './types.js';
 
 interface ThemeStyle {
   bgFill: string;
@@ -81,12 +81,14 @@ export function createTextTexture(
   canvas.width = width;
   canvas.height = height;
 
-  const s = nodeType === "group" ? G_NODE_THEMES[theme] : NODE_THEMES[theme];
+  const s = isContainerNodeType(nodeType)
+    ? G_NODE_THEMES[theme]
+    : NODE_THEMES[theme];
 
   // Background
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = s.bgFill;
-  if (nodeType === 'group') ctx.globalAlpha = 0.5;
+  if (isContainerNodeType(nodeType)) ctx.globalAlpha = 0.5;
   ctx.beginPath();
   ctx.roundRect(0, 0, width, height, 8);
   ctx.fill();
@@ -95,21 +97,21 @@ export function createTextTexture(
   // Border
   ctx.strokeStyle = s.borderStroke;
   ctx.lineWidth = s.borderWidth;
-  if (nodeType === 'group') ctx.setLineDash([8, 8]);
+  if (isContainerNodeType(nodeType)) ctx.setLineDash([8, 8]);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Header bar (only for nodes)
-  if (nodeType === 'node') {
+  // Header bar (only for leaf nodes)
+  if (nodeType === 'node' || nodeType === 'composition-child') {
     ctx.fillStyle = s.headerFill;
     ctx.beginPath();
     ctx.roundRect(0, 0, width, NODE_LAYOUT.headerHeight, [8, 8, 0, 0]);
     ctx.fill();
   }
 
-  // Title (only for nodes, group labels are floating in 2D canvas overlay)
-  const titleY = nodeType === 'group' ? 20 : NODE_LAYOUT.headerHeight / 2;
-  if (nodeType === 'node') {
+  // Title (only for leaf nodes, group/composition labels are handled elsewhere)
+  const titleY = isContainerNodeType(nodeType) ? 20 : NODE_LAYOUT.headerHeight / 2;
+  if (nodeType === 'node' || nodeType === 'composition-child') {
     ctx.fillStyle = s.titleFill;
     ctx.font = '600 14px Inter, sans-serif';
     ctx.textBaseline = 'middle';
@@ -121,10 +123,12 @@ export function createTextTexture(
   ctx.font = '14px Inter, sans-serif';
   ctx.fillText('✕', width - NODE_LAYOUT.closeBtnPaddingRight, titleY);
 
-  // Edit icon
-  ctx.fillStyle = s.titleFill;
-  ctx.font = '14px Inter, sans-serif';
-  ctx.fillText('✎', width - NODE_LAYOUT.editBtnPaddingRight, titleY);
+  if (nodeType === 'node' || nodeType === 'composition-child') {
+    // Edit icon
+    ctx.fillStyle = s.titleFill;
+    ctx.font = '14px Inter, sans-serif';
+    ctx.fillText('✎', width - NODE_LAYOUT.editBtnPaddingRight, titleY);
+  }
 
   if (nodeType === 'group') {
     // Draw "+" plus button at the bottom center
@@ -152,6 +156,12 @@ export function createTextTexture(
     ctx.textBaseline = 'middle';
     ctx.fillText('+', btnX, btnY);
     ctx.textAlign = 'left'; // restore
+  }
+
+  if (nodeType === 'composition-child') {
+    ctx.fillStyle = s.titleFill;
+    ctx.font = '14px Inter, sans-serif';
+    ctx.fillText('✎', width - NODE_LAYOUT.editBtnPaddingRight, titleY);
   }
 
   // Body hint

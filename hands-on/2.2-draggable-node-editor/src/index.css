@@ -259,6 +259,14 @@ button.primary:hover {
   border-color: var(--accent-hover);
 }
 
+button.secondary {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+button.secondary:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
 button.danger {
   background: rgba(239, 68, 68, 0.2);
   border-color: rgba(239, 68, 68, 0.3);

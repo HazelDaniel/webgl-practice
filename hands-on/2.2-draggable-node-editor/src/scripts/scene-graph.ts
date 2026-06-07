@@ -1,4 +1,4 @@
-import { NodeData } from './types.js';
+import { NodeData, isContainerNodeType } from './types.js';
 
 /**
  * Computes the absolute world-space position of a node by recursively
@@ -44,13 +44,28 @@ export function reparent(
   const child = nodes.get(childId);
   if (!child) return false;
 
-  if (newParentId !== null) {
+  if (newParentId === null) {
+    if (child.nodeType === 'composition' || child.nodeType === 'composition-child') {
+      return false;
+    }
+  } else {
     const newParent = nodes.get(newParentId);
     if (!newParent) return false;
-    // 1. Only groups can be parents
-    if (newParent.nodeType !== 'group') return false;
-    // 2. Groups cannot be nested (1-level nesting limit)
+    if (!isContainerNodeType(newParent.nodeType)) return false;
+
     if (child.nodeType === 'group') return false;
+
+    if (child.nodeType === 'composition') {
+      if (newParent.nodeType !== 'group') return false;
+    }
+
+    if (child.nodeType === 'composition-child') {
+      if (newParent.nodeType !== 'composition') return false;
+    }
+
+    if (child.nodeType === 'node') {
+      if (newParent.nodeType === 'composition') return false;
+    }
   }
 
   // Prevent a node from being its own ancestor (cycle guard)

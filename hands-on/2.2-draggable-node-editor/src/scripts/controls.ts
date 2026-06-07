@@ -4,6 +4,7 @@ import { ThemeName } from './types.js';
 export interface ControlCallbacks {
   onAddNode(): void;
   onAddGroup(): void;
+  onAddComposition(): void;
   onDeleteNode(): void;
   onBgColorChange(r: number, g: number, b: number, a: number): void;
   onThemeChange(theme: ThemeName): void;
@@ -23,6 +24,7 @@ export interface ControlCallbacks {
 export class UIControls {
   private addNodeButton: HTMLButtonElement;
   private addGroupButton: HTMLButtonElement;
+  private addCompositionButton: HTMLButtonElement;
   private deleteNodeButton: HTMLButtonElement;
   
   private sidebar: HTMLElement;
@@ -32,20 +34,21 @@ export class UIControls {
 
   constructor(
     canvas: HTMLCanvasElement,
-    container: HTMLElement, // This is now likely document.body or a higher container, we should query globally or from container if it wraps everything. Actually container passed is #controls-container, which we changed to #sidebar. Let's just query from document or update NodeEditor to pass the sidebar element. We can query within document for safety.
+    container: HTMLElement,
     callbacks: ControlCallbacks
   ) {
-    this.addNodeButton    = document.querySelector('#btn-add-node')!    as HTMLButtonElement;
-    this.addGroupButton   = document.querySelector('#btn-add-group')!   as HTMLButtonElement;
-    this.deleteNodeButton = document.querySelector('#btn-delete-node')! as HTMLButtonElement;
-    
-    this.sidebar = document.querySelector('#sidebar')! as HTMLElement;
-    this.sidebarToggle = document.querySelector('#sidebar-toggle')! as HTMLButtonElement;
-    this.nodeProperties = document.querySelector('#node-properties')! as HTMLElement;
-    this.nodeLabelInput = document.querySelector('#node-label-input')! as HTMLInputElement;
+    this.sidebar = container;
+    this.addNodeButton = container.querySelector('#btn-add-node')! as HTMLButtonElement;
+    this.addGroupButton = container.querySelector('#btn-add-group')! as HTMLButtonElement;
+    this.addCompositionButton = container.querySelector('#btn-add-composition')! as HTMLButtonElement;
+    this.deleteNodeButton = container.querySelector('#btn-delete-node')! as HTMLButtonElement;
+    this.sidebarToggle = container.querySelector('#sidebar-toggle')! as HTMLButtonElement;
+    this.nodeProperties = container.querySelector('#node-properties')! as HTMLDivElement;
+    this.nodeLabelInput = container.querySelector('#node-label-input')! as HTMLInputElement;
 
     this.addNodeButton.addEventListener('click', () => callbacks.onAddNode());
     this.addGroupButton.addEventListener('click', () => callbacks.onAddGroup());
+    this.addCompositionButton.addEventListener('click', () => callbacks.onAddComposition());
     this.deleteNodeButton.addEventListener('click', () => callbacks.onDeleteNode());
 
     const bgPicker = document.querySelector('#bg-color-picker') as HTMLInputElement | null;
@@ -78,6 +81,8 @@ export class UIControls {
 
   enableDelete(): void  { this.deleteNodeButton.disabled = false; }
   disableDelete(): void { this.deleteNodeButton.disabled = true;  }
+  enableAddComposition(): void { this.addCompositionButton.disabled = false; }
+  disableAddComposition(): void { this.addCompositionButton.disabled = true; }
 
   showProperties(label: string): void {
     this.nodeProperties.style.display = 'flex';

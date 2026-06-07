@@ -1,7 +1,9 @@
 export type ThemeName = 'dark' | 'light' | 'neon';
 export type GeometryMeshType = 'rounded-square';
 export type BGGeometryMeshType = 'dotted' | 'grid';
-export type NodeType = 'node' | 'group';
+export type NodeType = 'node' | 'group' | 'composition' | 'composition-child';
+export type ContainerNodeType = 'group' | 'composition';
+export type LeafNodeType = 'node' | 'composition-child';
 
 export const NODE_LAYOUT = {
   headerHeight: 30,
@@ -12,6 +14,34 @@ export const NODE_LAYOUT = {
   plusBtnPaddingBottom: 20,
   plusBtnClickRadius: 12,
 };
+
+export const NODE_SIZE = {
+  node: { width: 180, height: 150 },
+  group: { width: 240, height: 200 },
+  composition: { width: 240, height: 200 },
+  compositionChild: { width: 180, height: 92 },
+} as const;
+
+export function isContainerNodeType(nodeType: NodeType): nodeType is ContainerNodeType {
+  return nodeType === 'group' || nodeType === 'composition';
+}
+
+export function isLeafNodeType(nodeType: NodeType): nodeType is LeafNodeType {
+  return nodeType === 'node' || nodeType === 'composition-child';
+}
+
+export function getDefaultNodeSize(nodeType: NodeType): { width: number; height: number } {
+  switch (nodeType) {
+    case 'group':
+    case 'composition':
+      return NODE_SIZE.group;
+    case 'composition-child':
+      return NODE_SIZE.compositionChild;
+    case 'node':
+    default:
+      return NODE_SIZE.node;
+  }
+}
 
 export interface NodeShaderLocations {
   a_Position: number;

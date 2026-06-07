@@ -1,4 +1,3 @@
-import { NodeData, ThemeName, NodeType, NODE_LAYOUT } from "./types.js";
 import { BGGeometryNode, GeometryNode } from "./geometry.js";
 import {
   createProgram,
@@ -10,7 +9,20 @@ import { Camera } from "./camera.js";
 import { NodeStore } from "./node-store.js";
 import { Renderer } from "./renderer.js";
 import { UIControls } from "./controls.js";
+import {
+  NodeData,
+  ThemeName,
+  NodeType,
+  NODE_LAYOUT,
+  isContainerNodeType,
+} from "./types.js";
 import { getWorldPosition } from "./scene-graph.js";
+
+interface DragSnapshot {
+  localX: number;
+  localY: number;
+  parentId: number | null;
+}
 
 /**
  * NodeEditor is the single public class exposed to the entry point.
@@ -24,10 +36,10 @@ export class NodeEditor {
   private renderer: Renderer;
   private controls: UIControls;
 
-  // Interaction state
-  private bgColor: [number, number, number, number] = [7/255, 7/255, 8/255, 1.0];
+  private bgColor: [number, number, number, number] = [7 / 255, 7 / 255, 8 / 255, 1.0];
   private theme: ThemeName = "dark";
   private draggingNode: NodeData | null = null;
+  private dragSnapshot: DragSnapshot | null = null;
   private dragOffsetX: number = 0;
   private dragOffsetY: number = 0;
   private isPanning: boolean = false;
@@ -68,22 +80,16 @@ export class NodeEditor {
     bgFsSource: string
   ) {
     const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
-    const textCanvas = document.getElementById(
-      textCanvasId
-    ) as HTMLCanvasElement;
+    const textCanvas = document.getElementById(textCanvasId) as HTMLCanvasElement;
     const backgroundCanvas = document.getElementById(
       backgroundCanvasId
     ) as HTMLCanvasElement;
-    const labelCanvas = document.getElementById(
-      "2d-label-canvas"
-    ) as HTMLCanvasElement;
+    const labelCanvas = document.getElementById("2d-label-canvas") as HTMLCanvasElement;
 
     if (!canvas) throw new Error(`Canvas "${canvasId}" not found`);
     if (!textCanvas) throw new Error(`Canvas "${textCanvasId}" not found`);
-    if (!backgroundCanvas)
-      throw new Error(`Canvas "${backgroundCanvasId}" not found`);
-    if (!labelCanvas)
-      throw new Error(`Canvas "2d-label-canvas" not found`);
+    if (!backgroundCanvas) throw new Error(`Canvas "${backgroundCanvasId}" not found`);
+    if (!labelCanvas) throw new Error(`Canvas "2d-label-canvas" not found`);
 
     const gl = canvas.getContext("webgl2") as WebGL2RenderingContext;
     if (!gl) throw new Error("WebGL2 is not supported in this browser");
@@ -114,6 +120,7 @@ export class NodeEditor {
     this.controls = new UIControls(canvas, container, {
       onAddNode: () => this.handleAddNode(canvas, "node"),
       onAddGroup: () => this.handleAddNode(canvas, "group"),
+      onAddComposition: () => this.handleAddComposition(canvas),
       onDeleteNode: () => this.handleDeleteSelected(),
       onBgColorChange: (r, g, b, a) => {
         this.bgColor = [r, g, b, a];
@@ -124,7 +131,7 @@ export class NodeEditor {
       },
       onLabelChange: (newLabel) => {
         const selected = this.store.getSelected();
-        if (selected) {
+        if (selected && selected.nodeType !== "composition") {
           this.store.updateLabel(selected.id, newLabel, this.theme);
         }
       },
@@ -136,6 +143,7 @@ export class NodeEditor {
 
     window.addEventListener("resize", () => this.handleResize(canvas));
     this.handleResize(canvas);
+    this.syncToolbarState();
   }
 
   render(): void {
@@ -158,21 +166,57 @@ export class NodeEditor {
         ? `Group ${this.store.nextNodeId}`
         : `Node ${this.store.nextNodeId}`;
     this.store.add(x, y, label, this.theme, nodeType);
+    this.syncToolbarState();
+  }
+
+  private handleAddComposition(canvas: HTMLCanvasElement): void {
+    const targetGroup = this.getSelectedGroupTarget();
+    if (!targetGroup) return;
+
+    const screenX = Math.random() * (canvas.width - 240) + 120;
+    const screenY = Math.random() * (canvas.height - 240) + 120;
+    const { x, y } = this.camera.screenToWorld(screenX, screenY);
+    const composition = this.store.add(
+      x,
+      y,
+      `Composition ${this.store.nextNodeId}`,
+      this.theme,
+      "composition"
+    );
+
+    if (!this.store.setParent(composition.id, targetGroup.id)) {
+      this.store.remove(composition.id);
+      return;
+    }
+
+    this.refreshContainerChain(targetGroup.id);
+    this.store.deselectAll();
+    composition.isSelected = true;
+    this.controls.hideProperties();
+    this.syncToolbarState();
   }
 
   private handleDeleteSelected(): void {
     const selected = this.store.getSelected();
     if (!selected) return;
+
+    const parentId = selected.parentId;
     this.store.remove(selected.id);
-    this.controls.disableDelete();
+
+    if (parentId !== null) {
+      this.refreshContainerChain(parentId);
+    }
+
+    this.store.deselectAll();
+    this.controls.hideProperties();
+    this.syncToolbarState();
   }
 
   private pick(screenX: number, screenY: number): number {
     this.pickFBO.bind();
     this.renderer["gl"].clearColor(1.0, 1.0, 1.0, 1.0);
     this.renderer["gl"].clear(
-      this.renderer["gl"].COLOR_BUFFER_BIT |
-        this.renderer["gl"].DEPTH_BUFFER_BIT
+      this.renderer["gl"].COLOR_BUFFER_BIT | this.renderer["gl"].DEPTH_BUFFER_BIT
     );
     this.renderer.drawNodes(true);
 
@@ -185,27 +229,75 @@ export class NodeEditor {
     return pixels[0] + (pixels[1] << 8) + (pixels[2] << 16);
   }
 
-  private getHoveredGroup(screenX: number, screenY: number): NodeData | null {
-    if (!this.draggingNode) return null;
+  private getHoveredContainer(
+    screenX: number,
+    screenY: number,
+    source: NodeData
+  ): NodeData | null {
+    if (source.nodeType === "composition-child") return null;
 
-    // Temporarily hide dragging node so we can pick what's behind it
-    this.draggingNode.visible = false;
+    source.visible = false;
     const pickedId = this.pick(screenX, screenY);
-    this.draggingNode.visible = true;
+    source.visible = true;
 
     if (pickedId === 0) return null;
-    const pickedNode = this.store.get(pickedId);
-    if (
-      pickedNode &&
-      pickedNode.nodeType === "group" &&
-      pickedNode.id !== this.draggingNode.id
-    )
-      return pickedNode;
+    let pickedNode = this.store.get(pickedId);
+
+    while (pickedNode) {
+      if (
+        pickedNode.id !== source.id &&
+        isContainerNodeType(pickedNode.nodeType)
+      ) {
+        if (source.nodeType === "composition") {
+          return pickedNode.nodeType === "group" ? pickedNode : null;
+        }
+        return pickedNode;
+      }
+
+      if (pickedNode.parentId === null) break;
+      pickedNode = this.store.get(pickedNode.parentId);
+    }
+
     return null;
   }
 
+  private getSelectedGroupTarget(): NodeData | null {
+    const selected = this.store.getSelected();
+    if (!selected) return null;
+
+    if (selected.nodeType === "group") return selected;
+    if (selected.parentId === null) return null;
+
+    const parent = this.store.get(selected.parentId);
+    if (parent && parent.nodeType === "group") return parent;
+    return null;
+  }
+
+  private syncToolbarState(): void {
+    if (this.store.getSelected()) {
+      this.controls.enableDelete();
+    } else {
+      this.controls.disableDelete();
+    }
+
+    if (this.getSelectedGroupTarget()) {
+      this.controls.enableAddComposition();
+    } else {
+      this.controls.disableAddComposition();
+    }
+  }
+
+  private refreshContainerChain(containerId: number | null): void {
+    let currentId = containerId;
+    while (currentId !== null) {
+      const current = this.store.get(currentId);
+      if (!current || !isContainerNodeType(current.nodeType)) return;
+      this.store.updateContainerBounds(currentId, this.theme);
+      currentId = current.parentId;
+    }
+  }
+
   private handleMouseDown(e: MouseEvent, canvas: HTMLCanvasElement): void {
-    // Middle mouse or Alt+Left → pan
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
       this.startPan(e.clientX, e.clientY);
       return;
@@ -219,65 +311,68 @@ export class NodeEditor {
 
     if (!node) {
       this.store.deselectAll();
-      this.controls.disableDelete();
       this.controls.hideProperties();
-      // Clicked empty space - pan
+      this.draggingNode = null;
+      this.dragSnapshot = null;
+      this.syncToolbarState();
       this.startPan(e.clientX, e.clientY);
       return;
     }
 
-    this.controls.enableDelete();
-
-    // Store click coordinates relative to node origin
-    const { x: worldX, y: worldY } = this.camera.screenToWorld(
-      screenX,
-      screenY
-    );
+    const { x: worldX, y: worldY } = this.camera.screenToWorld(screenX, screenY);
     const nodeWorld = getWorldPosition(node.id, this.store.allNodesMap);
     const localClickX = worldX - nodeWorld.x;
     const localClickY = worldY - nodeWorld.y;
 
-    // Check for close icon (✕) click (distance-based hit-test)
     const closeX = node.width - NODE_LAYOUT.closeBtnPaddingRight;
-    const iconY = node.nodeType === "group" ? 20 : NODE_LAYOUT.headerHeight / 2;
-    const cDx = localClickX - closeX;
-    const cDy = localClickY - iconY;
+    const closeY = isContainerNodeType(node.nodeType)
+      ? 20
+      : NODE_LAYOUT.headerHeight / 2;
+    const closeDx = localClickX - closeX;
+    const closeDy = localClickY - closeY;
     if (
-      cDx * cDx + cDy * cDy <=
+      closeDx * closeDx + closeDy * closeDy <=
       NODE_LAYOUT.closeBtnClickRadius * NODE_LAYOUT.closeBtnClickRadius
     ) {
-      const oldParentId = node.parentId;
+      const parentId = node.parentId;
       this.store.remove(node.id);
-      this.controls.disableDelete();
-      this.controls.hideProperties();
-      if (oldParentId !== null) {
-        this.store.updateGroupBounds(oldParentId, this.theme);
+      if (parentId !== null) {
+        this.refreshContainerChain(parentId);
       }
-      return;
-    }
-
-    // Check for edit icon (✎) click
-    const editX = node.width - NODE_LAYOUT.editBtnPaddingRight;
-    const eDx = localClickX - editX;
-    const eDy = localClickY - iconY;
-    if (
-      eDx * eDx + eDy * eDy <=
-      NODE_LAYOUT.editBtnClickRadius * NODE_LAYOUT.editBtnClickRadius
-    ) {
       this.store.deselectAll();
-      node.isSelected = true;
-      this.controls.showProperties(node.text);
+      this.controls.hideProperties();
+      this.draggingNode = null;
+      this.dragSnapshot = null;
+      this.syncToolbarState();
       return;
     }
 
-    // Check for plus icon (+) click (groups only, distance-based hit-test)
+    if (node.nodeType === "node" || node.nodeType === "composition-child" || node.nodeType === "group") {
+      const editX = node.width - NODE_LAYOUT.editBtnPaddingRight;
+      const editY = isContainerNodeType(node.nodeType)
+        ? 20
+        : NODE_LAYOUT.headerHeight / 2;
+      const editDx = localClickX - editX;
+      const editDy = localClickY - editY;
+      if (
+        editDx * editDx + editDy * editDy <=
+        NODE_LAYOUT.editBtnClickRadius * NODE_LAYOUT.editBtnClickRadius
+      ) {
+        this.store.deselectAll();
+        node.isSelected = true;
+        this.controls.showProperties(node.text);
+        this.syncToolbarState();
+        return;
+      }
+    }
+
     if (node.nodeType === "group") {
       const plusX = node.width / 2;
       const plusY = node.height - NODE_LAYOUT.plusBtnPaddingBottom;
-      const pDx = localClickX - plusX;
-      const pDy = localClickY - plusY;
+      const plusDx = localClickX - plusX;
+      const plusDy = localClickY - plusY;
       if (
-        pDx * pDx + pDy * pDy <=
+        plusDx * plusDx + plusDy * plusDy <=
         NODE_LAYOUT.plusBtnClickRadius * NODE_LAYOUT.plusBtnClickRadius
       ) {
         const child = this.store.add(
@@ -287,19 +382,26 @@ export class NodeEditor {
           this.theme,
           "node"
         );
-        const success = this.store.setParent(child.id, node.id);
-        if (success) {
-          this.store.updateGroupBounds(node.id, this.theme);
+        if (this.store.setParent(child.id, node.id)) {
+          this.refreshContainerChain(node.id);
         }
+        this.syncToolbarState();
         return;
       }
     }
 
     this.store.deselectAll();
+    this.controls.hideProperties();
     node.isSelected = true;
     this.draggingNode = node;
+    this.dragSnapshot = {
+      localX: node.localX,
+      localY: node.localY,
+      parentId: node.parentId,
+    };
     this.dragOffsetX = worldX - nodeWorld.x;
     this.dragOffsetY = worldY - nodeWorld.y;
+    this.syncToolbarState();
   }
 
   private startPan(clientX: number, clientY: number): void {
@@ -319,16 +421,12 @@ export class NodeEditor {
     if (!this.draggingNode) return;
 
     const { left, top } = canvas.getBoundingClientRect();
-    const { x: worldX, y: worldY } = this.camera.screenToWorld(
-      e.clientX - left,
-      e.clientY - top
-    );
-
-    // Target world position of the node's top-left corner
+    const screenX = e.clientX - left;
+    const screenY = e.clientY - top;
+    const { x: worldX, y: worldY } = this.camera.screenToWorld(screenX, screenY);
     const targetX = worldX - this.dragOffsetX;
     const targetY = worldY - this.dragOffsetY;
 
-    // Convert target world pos - local pos relative to parent (if any)
     if (this.draggingNode.parentId === null) {
       this.draggingNode.localX = targetX;
       this.draggingNode.localY = targetY;
@@ -341,16 +439,11 @@ export class NodeEditor {
       this.draggingNode.localY = targetY - parentWorld.y;
     }
 
-    // Check for drop targets if it's a node
-    if (this.draggingNode.nodeType === "node") {
-      const hoveredGroup = this.getHoveredGroup(
-        e.clientX - left,
-        e.clientY - top
-      );
-
-      this.store.clearDropTargets();
-      if (hoveredGroup) {
-        hoveredGroup.isDropTarget = true;
+    this.store.clearDropTargets();
+    if (this.draggingNode.nodeType === "node" || this.draggingNode.nodeType === "composition") {
+      const hoveredContainer = this.getHoveredContainer(screenX, screenY, this.draggingNode);
+      if (hoveredContainer) {
+        hoveredContainer.isDropTarget = true;
       }
     }
   }
@@ -358,39 +451,86 @@ export class NodeEditor {
   private handleMouseUp(e: MouseEvent, canvas: HTMLCanvasElement): void {
     this.isPanning = false;
 
-    if (this.draggingNode) {
-      if (this.draggingNode.nodeType === "node") {
-        const { left, top } = canvas.getBoundingClientRect();
-        const hoveredGroup = this.getHoveredGroup(
-          e.clientX - left,
-          e.clientY - top
-        );
-        const oldParentId = this.draggingNode.parentId;
+    if (this.draggingNode && this.dragSnapshot) {
+      const { left, top } = canvas.getBoundingClientRect();
+      const screenX = e.clientX - left;
+      const screenY = e.clientY - top;
+      const source = this.draggingNode;
+      const snapshot = this.dragSnapshot;
 
-        if (hoveredGroup) {
-          const success = this.store.setParent(
-            this.draggingNode.id,
-            hoveredGroup.id
+      if (source.nodeType === "node") {
+        const hoveredContainer = this.getHoveredContainer(screenX, screenY, source);
+        if (hoveredContainer?.nodeType === "composition") {
+          const clone = this.store.duplicateIntoComposition(
+            source.id,
+            hoveredContainer.id,
+            this.theme
           );
-          if (success) {
-            this.store.updateGroupBounds(hoveredGroup.id, this.theme);
+          this.store.restoreNodePlacement(
+            source.id,
+            snapshot.localX,
+            snapshot.localY,
+            snapshot.parentId
+          );
+          if (clone) {
+            this.store.deselectAll();
+            clone.isSelected = true;
+            this.refreshContainerChain(hoveredContainer.id);
+          }
+        } else if (hoveredContainer?.nodeType === "group") {
+          const oldParentId = source.parentId;
+          if (this.store.setParent(source.id, hoveredContainer.id)) {
+            this.refreshContainerChain(hoveredContainer.id);
+            if (oldParentId !== null && oldParentId !== hoveredContainer.id) {
+              this.refreshContainerChain(oldParentId);
+            }
+          } else {
+            this.store.restoreNodePlacement(
+              source.id,
+              snapshot.localX,
+              snapshot.localY,
+              snapshot.parentId
+            );
           }
         } else {
-          // Detach
-          this.store.setParent(this.draggingNode.id, null);
+          const oldParentId = source.parentId;
+          this.store.setParent(source.id, null);
+          if (oldParentId !== null) {
+            this.refreshContainerChain(oldParentId);
+          }
         }
-
-        if (
-          oldParentId !== null &&
-          oldParentId !== this.draggingNode.parentId
-        ) {
-          this.store.updateGroupBounds(oldParentId, this.theme);
+      } else if (source.nodeType === "composition") {
+        const hoveredContainer = this.getHoveredContainer(screenX, screenY, source);
+        if (hoveredContainer?.nodeType === "group") {
+          const oldParentId = source.parentId;
+          if (this.store.setParent(source.id, hoveredContainer.id)) {
+            this.refreshContainerChain(hoveredContainer.id);
+            if (oldParentId !== null && oldParentId !== hoveredContainer.id) {
+              this.refreshContainerChain(oldParentId);
+            }
+          } else {
+            this.store.restoreNodePlacement(
+              source.id,
+              snapshot.localX,
+              snapshot.localY,
+              snapshot.parentId
+            );
+          }
+        } else {
+          this.store.restoreNodePlacement(
+            source.id,
+            snapshot.localX,
+            snapshot.localY,
+            snapshot.parentId
+          );
         }
       }
-
-      this.store.clearDropTargets();
-      this.draggingNode = null;
     }
+
+    this.store.clearDropTargets();
+    this.draggingNode = null;
+    this.dragSnapshot = null;
+    this.syncToolbarState();
   }
 
   private handleWheel(e: WheelEvent, canvas: HTMLCanvasElement): void {
