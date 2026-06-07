@@ -102,8 +102,8 @@ export class NodeEditor {
       () => this.bgColor,
     );
 
-    const container = document.getElementById("controls-container");
-    if (!container) throw new Error('"controls-container" element not found');
+    const container = document.getElementById("sidebar");
+    if (!container) throw new Error('"sidebar" element not found');
 
     this.controls = new UIControls(canvas, container, {
       onAddNode: () => this.handleAddNode(canvas, "node"),
@@ -115,6 +115,12 @@ export class NodeEditor {
       onThemeChange: (theme) => {
         this.theme = theme;
         this.store.regenerateTextures(theme);
+      },
+      onLabelChange: (newLabel) => {
+        const selected = this.store.getSelected();
+        if (selected) {
+          this.store.updateLabel(selected.id, newLabel, this.theme);
+        }
       },
       onMouseDown: (e) => this.handleMouseDown(e, canvas),
       onMouseMove: (e) => this.handleMouseMove(e, canvas),
@@ -208,6 +214,7 @@ export class NodeEditor {
     if (!node) {
       this.store.deselectAll();
       this.controls.disableDelete();
+      this.controls.hideProperties();
       // Clicked empty space - pan
       this.startPan(e.clientX, e.clientY);
       return;
@@ -226,9 +233,9 @@ export class NodeEditor {
 
     // Check for close icon (✕) click (distance-based hit-test)
     const closeX = node.width - NODE_LAYOUT.closeBtnPaddingRight;
-    const closeY = NODE_LAYOUT.headerHeight / 2;
+    const iconY = node.nodeType === "group" ? 20 : NODE_LAYOUT.headerHeight / 2;
     const cDx = localClickX - closeX;
-    const cDy = localClickY - closeY;
+    const cDy = localClickY - iconY;
     if (
       cDx * cDx + cDy * cDy <=
       NODE_LAYOUT.closeBtnClickRadius * NODE_LAYOUT.closeBtnClickRadius
@@ -236,9 +243,24 @@ export class NodeEditor {
       const oldParentId = node.parentId;
       this.store.remove(node.id);
       this.controls.disableDelete();
+      this.controls.hideProperties();
       if (oldParentId !== null) {
         this.store.updateGroupBounds(oldParentId, this.theme);
       }
+      return;
+    }
+
+    // Check for edit icon (✎) click
+    const editX = node.width - NODE_LAYOUT.editBtnPaddingRight;
+    const eDx = localClickX - editX;
+    const eDy = localClickY - iconY;
+    if (
+      eDx * eDx + eDy * eDy <=
+      NODE_LAYOUT.editBtnClickRadius * NODE_LAYOUT.editBtnClickRadius
+    ) {
+      this.store.deselectAll();
+      node.isSelected = true;
+      this.controls.showProperties(node.text);
       return;
     }
 

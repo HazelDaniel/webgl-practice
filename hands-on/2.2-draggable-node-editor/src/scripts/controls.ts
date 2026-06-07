@@ -7,6 +7,7 @@ export interface ControlCallbacks {
   onDeleteNode(): void;
   onBgColorChange(r: number, g: number, b: number, a: number): void;
   onThemeChange(theme: ThemeName): void;
+  onLabelChange(newLabel: string): void;
   onMouseDown(e: MouseEvent): void;
   onMouseMove(e: MouseEvent): void;
   onMouseUp(e: MouseEvent): void;
@@ -23,21 +24,31 @@ export class UIControls {
   private addNodeButton: HTMLButtonElement;
   private addGroupButton: HTMLButtonElement;
   private deleteNodeButton: HTMLButtonElement;
+  
+  private sidebar: HTMLElement;
+  private sidebarToggle: HTMLButtonElement;
+  private nodeProperties: HTMLElement;
+  private nodeLabelInput: HTMLInputElement;
 
   constructor(
     canvas: HTMLCanvasElement,
-    container: HTMLElement,
+    container: HTMLElement, // This is now likely document.body or a higher container, we should query globally or from container if it wraps everything. Actually container passed is #controls-container, which we changed to #sidebar. Let's just query from document or update NodeEditor to pass the sidebar element. We can query within document for safety.
     callbacks: ControlCallbacks
   ) {
-    this.addNodeButton    = container.querySelector('#btn-add-node')!    as HTMLButtonElement;
-    this.addGroupButton   = container.querySelector('#btn-add-group')!   as HTMLButtonElement;
-    this.deleteNodeButton = container.querySelector('#btn-delete-node')! as HTMLButtonElement;
+    this.addNodeButton    = document.querySelector('#btn-add-node')!    as HTMLButtonElement;
+    this.addGroupButton   = document.querySelector('#btn-add-group')!   as HTMLButtonElement;
+    this.deleteNodeButton = document.querySelector('#btn-delete-node')! as HTMLButtonElement;
+    
+    this.sidebar = document.querySelector('#sidebar')! as HTMLElement;
+    this.sidebarToggle = document.querySelector('#sidebar-toggle')! as HTMLButtonElement;
+    this.nodeProperties = document.querySelector('#node-properties')! as HTMLElement;
+    this.nodeLabelInput = document.querySelector('#node-label-input')! as HTMLInputElement;
 
     this.addNodeButton.addEventListener('click', () => callbacks.onAddNode());
     this.addGroupButton.addEventListener('click', () => callbacks.onAddGroup());
     this.deleteNodeButton.addEventListener('click', () => callbacks.onDeleteNode());
 
-    const bgPicker = container.querySelector('#bg-color-picker') as HTMLInputElement | null;
+    const bgPicker = document.querySelector('#bg-color-picker') as HTMLInputElement | null;
     bgPicker?.addEventListener('input', (e) => {
       const hex = (e.target as HTMLInputElement).value;
       const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -46,9 +57,17 @@ export class UIControls {
       callbacks.onBgColorChange(r, g, b, 1.0);
     });
 
-    const themeSelect = container.querySelector('#theme-selector') as HTMLSelectElement | null;
+    const themeSelect = document.querySelector('#theme-selector') as HTMLSelectElement | null;
     themeSelect?.addEventListener('change', (e) => {
       callbacks.onThemeChange((e.target as HTMLSelectElement).value as ThemeName);
+    });
+
+    this.sidebarToggle.addEventListener('click', () => {
+      this.sidebar.classList.toggle('collapsed');
+    });
+
+    this.nodeLabelInput.addEventListener('input', (e) => {
+      callbacks.onLabelChange((e.target as HTMLInputElement).value);
     });
 
     canvas.addEventListener('mousedown', (e) => callbacks.onMouseDown(e));
@@ -59,4 +78,14 @@ export class UIControls {
 
   enableDelete(): void  { this.deleteNodeButton.disabled = false; }
   disableDelete(): void { this.deleteNodeButton.disabled = true;  }
+
+  showProperties(label: string): void {
+    this.nodeProperties.style.display = 'flex';
+    this.nodeLabelInput.value = label;
+    this.sidebar.classList.remove('collapsed');
+  }
+
+  hideProperties(): void {
+    this.nodeProperties.style.display = 'none';
+  }
 }

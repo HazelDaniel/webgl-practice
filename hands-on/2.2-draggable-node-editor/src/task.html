@@ -22,32 +22,49 @@
     <!-- Hidden 2D Canvas for Text to Texture generation -->
     <canvas id="2d-text-canvas" class="hidden"></canvas>
 
-    <!-- UI Overlay -->
-    <div class="ui-container" id="controls-container">
-      <div class="ui-title">Node Editor</div>
+    <!-- Screen Reader Only Node List -->
+    <ul id="sr-node-list" class="sr-only" aria-label="Workflow graph nodes" role="list"></ul>
 
-      <div class="settings-group">
-        <label for="bg-color-picker">Canvas Color</label>
-        <input type="color" id="bg-color-picker" value="#0f172a" />
-      </div>
+    <!-- Sidebar Overlay -->
+    <aside id="sidebar" class="sidebar collapsed">
+      <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar">‹</button>
+      <div class="sidebar-content">
+        <div class="sidebar-section">
+          <div class="section-header">Canvas</div>
+          <div class="settings-group">
+            <label for="bg-color-picker">Color</label>
+            <input type="color" id="bg-color-picker" value="#0f172a" />
+          </div>
+          <div class="settings-group">
+            <label for="theme-selector">Node Theme</label>
+            <select id="theme-selector">
+              <option value="dark">Dark (Glass)</option>
+              <option value="light">Light</option>
+              <option value="neon">Neon</option>
+            </select>
+          </div>
+        </div>
 
-      <div class="settings-group">
-        <label for="theme-selector">Node Theme</label>
-        <select id="theme-selector">
-          <option value="dark">Dark (Glass)</option>
-          <option value="light">Light</option>
-          <option value="neon">Neon</option>
-        </select>
-      </div>
+        <div class="sidebar-section">
+          <div class="section-header">Actions</div>
+          <div class="controls">
+            <button id="btn-add-node" class="primary">+ Add Node</button>
+            <button id="btn-add-group" class="secondary">+ Add Group</button>
+            <button id="btn-delete-node" class="danger" disabled>
+              🗑️ Delete Selected
+            </button>
+          </div>
+        </div>
 
-      <div class="controls">
-        <button id="btn-add-node" class="primary">+ Add Node</button>
-        <button id="btn-add-group" class="secondary">+ Add Group</button>
-        <button id="btn-delete-node" class="danger" disabled>
-          🗑️ Delete Selected
-        </button>
+        <div id="node-properties" class="sidebar-section" style="display:none">
+          <div class="section-header">Properties</div>
+          <div class="settings-group vertical">
+            <label for="node-label-input">Label</label>
+            <input type="text" id="node-label-input" placeholder="Node label..." class="text-input" />
+          </div>
+        </div>
       </div>
-    </div>
+    </aside>
 
     <script type="x-shader/vertex" id="v-shader">
       attribute vec4 a_Position;

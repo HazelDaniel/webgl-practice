@@ -99,22 +99,30 @@ export function createTextTexture(
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Header bar
-  ctx.fillStyle = s.headerFill;
-  ctx.beginPath();
-  ctx.roundRect(0, 0, width, NODE_LAYOUT.headerHeight, [8, 8, 0, 0]);
-  ctx.fill();
+  // Header bar (only for nodes)
+  if (nodeType === 'node') {
+    ctx.fillStyle = s.headerFill;
+    ctx.beginPath();
+    ctx.roundRect(0, 0, width, NODE_LAYOUT.headerHeight, [8, 8, 0, 0]);
+    ctx.fill();
+  }
 
   // Title
   ctx.fillStyle = s.titleFill;
   ctx.font = '600 14px Inter, sans-serif';
   ctx.textBaseline = 'middle';
-  ctx.fillText(text, 10, NODE_LAYOUT.headerHeight / 2);
+  const titleY = nodeType === 'group' ? 20 : NODE_LAYOUT.headerHeight / 2;
+  ctx.fillText(text, 15, titleY);
 
   // Close icon
   ctx.fillStyle = '#ef4444';
   ctx.font = '14px Inter, sans-serif';
-  ctx.fillText('✕', width - NODE_LAYOUT.closeBtnPaddingRight, NODE_LAYOUT.headerHeight / 2);
+  ctx.fillText('✕', width - NODE_LAYOUT.closeBtnPaddingRight, titleY);
+
+  // Edit icon
+  ctx.fillStyle = s.titleFill;
+  ctx.font = '14px Inter, sans-serif';
+  ctx.fillText('✎', width - NODE_LAYOUT.editBtnPaddingRight, titleY);
 
   if (nodeType === 'group') {
     // Draw "+" plus button at the bottom center

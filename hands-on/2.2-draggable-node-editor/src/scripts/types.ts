@@ -7,6 +7,8 @@ export const NODE_LAYOUT = {
   headerHeight: 30,
   closeBtnPaddingRight: 20,
   closeBtnClickRadius: 15,
+  editBtnPaddingRight: 45,
+  editBtnClickRadius: 15,
   plusBtnPaddingBottom: 20,
   plusBtnClickRadius: 12,
 };

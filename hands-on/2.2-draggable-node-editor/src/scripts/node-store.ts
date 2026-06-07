@@ -1,6 +1,7 @@
 import { NodeData, ThemeName, NodeType } from './types.js';
 import { createTextTexture } from './texture.js';
 import { reparent } from './scene-graph.js';
+import { AccessibilityTree } from './accessibility.js';
 
 /**
  * Owns the canonical node list. Groups and regular nodes are stored
@@ -14,12 +15,15 @@ export class NodeStore {
   /** Regular nodes — drawn second (in front of groups). */
   readonly nodes: Map<number, NodeData> = new Map();
   private _nextId: number = 0;
+  private a11yTree: AccessibilityTree;
 
   constructor(
     private gl: WebGL2RenderingContext,
     private ctx: CanvasRenderingContext2D,
     private textCanvas: HTMLCanvasElement
-  ) {}
+  ) {
+    this.a11yTree = new AccessibilityTree();
+  }
 
   /** The id that the next call to add() will assign. Useful for labelling. */
   get nextNodeId(): number {
@@ -75,6 +79,8 @@ export class NodeStore {
     } else {
       this.nodes.set(id, node);
     }
+    
+    this.a11yTree.addNode(id, text, nodeType);
     return node;
   }
 
@@ -117,6 +123,7 @@ export class NodeStore {
     this.gl.deleteTexture(node.texture);
     this.groups.delete(id);
     this.nodes.delete(id);
+    this.a11yTree.removeNode(id);
   }
 
   /** Returns the currently selected node, if any. */
@@ -149,6 +156,19 @@ export class NodeStore {
     };
     this.groups.forEach(regen);
     this.nodes.forEach(regen);
+  }
+
+  /** Update the label text of a node and regenerate its texture. */
+  updateLabel(id: number, newLabel: string, theme: ThemeName): void {
+    const node = this.get(id);
+    if (!node) return;
+    node.text = newLabel;
+    
+    const oldTex = node.texture;
+    node.texture = createTextTexture(this.gl, this.ctx, this.textCanvas, newLabel, node.width, node.height, theme, node.nodeType);
+    this.gl.deleteTexture(oldTex);
+    
+    this.a11yTree.updateLabel(id, newLabel, node.nodeType);
   }
 
   /** Assign a new parent to a child node, preserving world position. */
