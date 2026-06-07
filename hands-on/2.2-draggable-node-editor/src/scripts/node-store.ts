@@ -293,6 +293,39 @@ export class NodeStore {
     return true;
   }
 
+  /** Restore a node without re-validating the historical parent relationship. */
+  forceRestoreNodePlacement(
+    childId: number,
+    localX: number,
+    localY: number,
+    parentId: number | null
+  ): boolean {
+    const node = this.get(childId);
+    if (!node) return false;
+
+    if (node.parentId !== null) {
+      const currentParent = this.get(node.parentId);
+      if (currentParent) {
+        currentParent.childIds = currentParent.childIds.filter(
+          (id) => id !== childId
+        );
+      }
+    }
+
+    node.localX = localX;
+    node.localY = localY;
+    node.parentId = parentId;
+
+    if (parentId !== null) {
+      const parent = this.get(parentId);
+      if (parent && !parent.childIds.includes(childId)) {
+        parent.childIds.push(childId);
+      }
+    }
+
+    return true;
+  }
+
   /**
    * All visible nodes in render order:
    * groups first, compositions second, leaves last.

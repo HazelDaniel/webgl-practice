@@ -28,6 +28,15 @@
     <!-- Screen Reader Only Node List -->
     <ul id="sr-node-list" class="sr-only" aria-label="Workflow graph nodes" role="list"></ul>
 
+    <div id="undo-redo-wrapper">
+      <button id="btn-undo" class="secondary" disabled>
+        Undo
+      </button>
+      <button id="btn-redo" class="secondary" disabled>
+        Redo
+      </button>
+    </div>
+
     <!-- Sidebar Overlay -->
     <aside id="sidebar" class="sidebar collapsed">
       <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar">‹</button>
@@ -56,6 +65,9 @@
             <button id="btn-add-composition" class="secondary" disabled>
               + Add Composition
             </button>
+
+
+
             <button id="btn-delete-node" class="danger" disabled>
               🗑️ Delete Selected
             </button>

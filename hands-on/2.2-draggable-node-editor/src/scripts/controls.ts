@@ -5,10 +5,13 @@ export interface ControlCallbacks {
   onAddNode(): void;
   onAddGroup(): void;
   onAddComposition(): void;
+  onUndo(): void;
+  onRedo(): void;
   onDeleteNode(): void;
   onBgColorChange(r: number, g: number, b: number, a: number): void;
   onThemeChange(theme: ThemeName): void;
   onLabelChange(newLabel: string): void;
+  onLabelCommit(): void;
   onMouseDown(e: MouseEvent): void;
   onMouseMove(e: MouseEvent): void;
   onMouseUp(e: MouseEvent): void;
@@ -25,6 +28,8 @@ export class UIControls {
   private addNodeButton: HTMLButtonElement;
   private addGroupButton: HTMLButtonElement;
   private addCompositionButton: HTMLButtonElement;
+  private undoButton: HTMLButtonElement;
+  private redoButton: HTMLButtonElement;
   private deleteNodeButton: HTMLButtonElement;
   
   private sidebar: HTMLElement;
@@ -35,12 +40,15 @@ export class UIControls {
   constructor(
     canvas: HTMLCanvasElement,
     container: HTMLElement,
+    historyPane: HTMLElement,
     callbacks: ControlCallbacks
   ) {
     this.sidebar = container;
     this.addNodeButton = container.querySelector('#btn-add-node')! as HTMLButtonElement;
     this.addGroupButton = container.querySelector('#btn-add-group')! as HTMLButtonElement;
     this.addCompositionButton = container.querySelector('#btn-add-composition')! as HTMLButtonElement;
+    this.undoButton = historyPane.querySelector('#btn-undo')! as HTMLButtonElement;
+    this.redoButton = historyPane.querySelector('#btn-redo')! as HTMLButtonElement;
     this.deleteNodeButton = container.querySelector('#btn-delete-node')! as HTMLButtonElement;
     this.sidebarToggle = container.querySelector('#sidebar-toggle')! as HTMLButtonElement;
     this.nodeProperties = container.querySelector('#node-properties')! as HTMLDivElement;
@@ -49,6 +57,8 @@ export class UIControls {
     this.addNodeButton.addEventListener('click', () => callbacks.onAddNode());
     this.addGroupButton.addEventListener('click', () => callbacks.onAddGroup());
     this.addCompositionButton.addEventListener('click', () => callbacks.onAddComposition());
+    this.undoButton.addEventListener('click', () => callbacks.onUndo());
+    this.redoButton.addEventListener('click', () => callbacks.onRedo());
     this.deleteNodeButton.addEventListener('click', () => callbacks.onDeleteNode());
 
     const bgPicker = document.querySelector('#bg-color-picker') as HTMLInputElement | null;
@@ -72,6 +82,13 @@ export class UIControls {
     this.nodeLabelInput.addEventListener('input', (e) => {
       callbacks.onLabelChange((e.target as HTMLInputElement).value);
     });
+    this.nodeLabelInput.addEventListener('blur', () => callbacks.onLabelCommit());
+    this.nodeLabelInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.nodeLabelInput.blur();
+      }
+    });
 
     canvas.addEventListener('mousedown', (e) => callbacks.onMouseDown(e));
     window.addEventListener('mousemove', (e) => callbacks.onMouseMove(e));
@@ -83,6 +100,10 @@ export class UIControls {
   disableDelete(): void { this.deleteNodeButton.disabled = true;  }
   enableAddComposition(): void { this.addCompositionButton.disabled = false; }
   disableAddComposition(): void { this.addCompositionButton.disabled = true; }
+  enableUndo(): void { this.undoButton.disabled = false; }
+  disableUndo(): void { this.undoButton.disabled = true; }
+  enableRedo(): void { this.redoButton.disabled = false; }
+  disableRedo(): void { this.redoButton.disabled = true; }
 
   showProperties(label: string): void {
     this.nodeProperties.style.display = 'flex';

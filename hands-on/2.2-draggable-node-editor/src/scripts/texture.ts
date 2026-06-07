@@ -161,7 +161,7 @@ export function createTextTexture(
   ctx.font = '14px Inter, sans-serif';
   ctx.fillText('✕', width - NODE_LAYOUT.closeBtnPaddingRight, titleY);
 
-  if (nodeType === 'node' || nodeType === 'composition-child') {
+  if (nodeType === 'node' || nodeType === 'composition-child' || nodeType === 'group') {
     // Edit icon
     ctx.fillStyle = s.titleFill;
     ctx.font = '14px Inter, sans-serif';
