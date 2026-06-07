@@ -101,8 +101,9 @@ export class BGGeometryNode {
   private generateGridMesh(): void {
     const gl = this.gl;
     const lines: number[] = [];
-    const divisionsX = this.canvas.width / 20;
-    const divisionsY = this.canvas.height / 20;
+    const HARD_DIM = this.canvas.height * 2.5;
+    const divisionsX = HARD_DIM / 20;
+    const divisionsY = HARD_DIM / 10;
     const stepX = 2.0 / divisionsX;
     const stepY = 2.0 / divisionsY;
 

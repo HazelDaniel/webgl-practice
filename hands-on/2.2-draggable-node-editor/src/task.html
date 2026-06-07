@@ -124,10 +124,15 @@
     <script type="x-shader/fragment" id="bg-f-shader">
       precision mediump float;
       uniform vec4 u_Color;
+      uniform bool u_UsePointMask;
       void main() {
-        float dist = distance(gl_PointCoord, vec2(0.5));
-        if (dist > 0.5) {
-          discard;
+        if (u_UsePointMask) {
+          float dist = distance(gl_PointCoord, vec2(0.5));
+          if (dist > 0.5) {
+            discard;
+          } else {
+            gl_FragColor = u_Color;
+          }
         } else {
           gl_FragColor = u_Color;
         }

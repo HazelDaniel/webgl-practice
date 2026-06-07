@@ -129,6 +129,7 @@ export interface NodeShaderLocations {
 export interface BGShaderLocations {
   a_Position: number;
   u_Color: WebGLUniformLocation;
+  u_UsePointMask: WebGLUniformLocation;
 }
 
 export interface NodeData {

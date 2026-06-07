@@ -78,16 +78,21 @@ export function getBGShaderLocations(
   program: WebGLProgram
 ): BGShaderLocations {
   const locations: BGShaderLocations = {
-    a_Position:   gl.getAttribLocation(program, 'a_Position'),
-    u_Color:      gl.getUniformLocation(program, 'u_Color')!,
+    a_Position: gl.getAttribLocation(program, 'a_Position'),
+    u_Color: gl.getUniformLocation(program, 'u_Color')!,
+    u_UsePointMask: gl.getUniformLocation(program, 'u_UsePointMask')!,
   };
   validateShaderLocations(locations);
   return locations;
 }
 
 
-function validateShaderLocations(locs: BGShaderLocations): void {
-  for (const [key, val] of Object.entries(locs)) {
+function validateShaderLocations(
+  locs: object
+): void {
+  for (const [key, val] of Object.entries(
+    locs as Record<string, number | WebGLUniformLocation | null>
+  )) {
     if (key.startsWith('a_') && (val as number) < 0) {
       throw new Error(`Shader attribute ${key} has an invalid location`);
     } else if (key.startsWith('u_') && !val) {

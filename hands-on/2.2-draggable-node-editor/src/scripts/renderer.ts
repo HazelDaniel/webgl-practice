@@ -499,6 +499,10 @@ export class Renderer {
     gl.enableVertexAttribArray(this.bgLocations.a_Position);
 
     gl.uniform4f(this.bgLocations.u_Color, 0.1, 0.1, 0.1, 0.05); // dull gray pattern
+    gl.uniform1i(
+      this.bgLocations.u_UsePointMask,
+      this.bgGeometry.primitiveType === gl.POINTS ? 1 : 0
+    );
     gl.drawArrays(this.bgGeometry.primitiveType, 0, this.bgGeometry.length);
   }
 
