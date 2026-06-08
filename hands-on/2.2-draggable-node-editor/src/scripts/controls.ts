@@ -5,6 +5,7 @@ export interface ControlCallbacks {
   onAddNode(): void;
   onAddGroup(): void;
   onAddComposition(): void;
+  onToggleMultiSelect(): void;
   onUndo(): void;
   onRedo(): void;
   onDeleteNode(): void;
@@ -28,6 +29,7 @@ export class UIControls {
   private addNodeButton: HTMLButtonElement;
   private addGroupButton: HTMLButtonElement;
   private addCompositionButton: HTMLButtonElement;
+  private multiSelectButton: HTMLButtonElement;
   private undoButton: HTMLButtonElement;
   private redoButton: HTMLButtonElement;
   private deleteNodeButton: HTMLButtonElement;
@@ -54,6 +56,9 @@ export class UIControls {
     this.addCompositionButton = toolPane.querySelector(
       "#btn-add-composition"
     )! as HTMLButtonElement;
+    this.multiSelectButton = toolPane.querySelector(
+      "#btn-multi-select"
+    )! as HTMLButtonElement;
     this.undoButton = historyPane.querySelector(
       "#btn-undo"
     )! as HTMLButtonElement;
@@ -77,6 +82,9 @@ export class UIControls {
     this.addGroupButton.addEventListener("click", () => callbacks.onAddGroup());
     this.addCompositionButton.addEventListener("click", () =>
       callbacks.onAddComposition()
+    );
+    this.multiSelectButton.addEventListener("click", () =>
+      callbacks.onToggleMultiSelect()
     );
     this.undoButton.addEventListener("click", () => callbacks.onUndo());
     this.redoButton.addEventListener("click", () => callbacks.onRedo());
@@ -140,6 +148,9 @@ export class UIControls {
   }
   disableAddComposition(): void {
     this.addCompositionButton.disabled = true;
+  }
+  setMultiSelectActive(active: boolean): void {
+    this.multiSelectButton.classList.toggle("active", active);
   }
   enableUndo(): void {
     this.undoButton.disabled = false;

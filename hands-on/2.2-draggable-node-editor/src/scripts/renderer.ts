@@ -44,7 +44,6 @@ export class Renderer {
     private bgLocations: BGShaderLocations,
     private labelCanvas: HTMLCanvasElement,
     private getConnectionPreview: () => ConnectionPreviewData | null,
-    private getSelectedEdgeId: () => number | null,
     /** Callback so Renderer never stores bgColor itself — it belongs to the editor. */
     private getBgColor: () => [number, number, number, number]
   ) {
@@ -144,7 +143,6 @@ export class Renderer {
   private drawEdgeLabels(): void {
     if (!this.labelCtx) return;
 
-    const selectedEdgeId = this.getSelectedEdgeId();
     this.labelCtx.save();
     this.labelCtx.font = '500 12px Inter, sans-serif';
     this.labelCtx.textBaseline = 'middle';
@@ -155,7 +153,7 @@ export class Renderer {
 
       const x = route.labelScreenPoint.x;
       const y = route.labelScreenPoint.y - 12;
-      const isSelected = route.edge.id === selectedEdgeId;
+      const isSelected = route.edge.isSelected;
 
       const metrics = this.labelCtx.measureText(route.edge.label);
       const padX = 8;
@@ -219,7 +217,6 @@ export class Renderer {
     const gl = this.gl;
     const visibleEdges = this.edgeStore.allEdges().filter((edge) => edge.visible);
     this.edgeFrame = [];
-    const selectedEdgeId = this.getSelectedEdgeId();
 
     if (visibleEdges.length === 0) return;
 
@@ -235,7 +232,7 @@ export class Renderer {
       if (!geometry || geometry.worldPoints.length < 2) continue;
 
       this.edgeFrame.push(geometry);
-      if (edge.id === selectedEdgeId) continue;
+      if (edge.isSelected) continue;
 
       lineDraws.push({ first: lineCursor, count: geometry.worldPoints.length });
       lineCursor += geometry.worldPoints.length;
@@ -287,17 +284,15 @@ export class Renderer {
       }
     }
 
-    if (selectedEdgeId !== null) {
-      const selectedEdge = visibleEdges.find((edge) => edge.id === selectedEdgeId);
-      if (selectedEdge) {
-        const selectedGeometry = buildEdgeRouteGeometry(selectedEdge, this.store, this.camera);
-        if (selectedGeometry) {
-          this.drawSingleEdge(
-            selectedGeometry,
-            'rgba(245, 158, 11, 0.98)',
-            'rgba(251, 191, 36, 1)'
-          );
-        }
+    const selectedEdges = visibleEdges.filter((edge) => edge.isSelected);
+    for (const selectedEdge of selectedEdges) {
+      const selectedGeometry = buildEdgeRouteGeometry(selectedEdge, this.store, this.camera);
+      if (selectedGeometry) {
+        this.drawSingleEdge(
+          selectedGeometry,
+          'rgba(245, 158, 11, 0.98)',
+          'rgba(251, 191, 36, 1)'
+        );
       }
     }
   }

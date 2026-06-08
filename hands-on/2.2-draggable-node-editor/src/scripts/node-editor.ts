@@ -84,9 +84,12 @@ interface EdgeHistorySnapshot {
   visible: boolean;
 }
 
+type SelectionKind = "node" | "edge" | null;
+
 interface SelectionSnapshot {
-  nodeId: number | null;
-  edgeId: number | null;
+  kind: SelectionKind;
+  nodeIds: number[];
+  edgeIds: number[];
 }
 
 interface ActiveLabelEdit {
@@ -120,7 +123,10 @@ export class NodeEditor {
   private connectionMode: ConnectionMode;
   private activeConnectionDrag: ConnectionDragState | null = null;
   private hoveredHandle: HandleHit | null = null;
-  private selectedEdgeId: number | null = null;
+  private selectedNodeIds: Set<number> = new Set();
+  private selectedEdgeIds: Set<number> = new Set();
+  private selectionKind: SelectionKind = null;
+  private isMultiSelectMode: boolean = false;
   private activeLabelEdit: ActiveLabelEdit | null = null;
 
   private static _instance: NodeEditor | null = null;
@@ -201,7 +207,6 @@ export class NodeEditor {
     this.renderer = new Renderer(gl, canvas, backgroundCanvas, program, locations,
       geometry, bgGeometry, this.store, this.edgeStore, this.camera, bgProgram, bgLocations, labelCanvas,
       () => this.activeConnectionDrag,
-      () => this.selectedEdgeId,
       () => this.bgColor,
     );
 
@@ -215,6 +220,7 @@ export class NodeEditor {
       onAddNode: () => this.handleAddNode(canvas, "node"),
       onAddGroup: () => this.handleAddNode(canvas, "group"),
       onAddComposition: () => this.handleAddComposition(canvas),
+      onToggleMultiSelect: () => this.toggleMultiSelectMode(),
       onUndo: () => this.undo(),
       onRedo: () => this.redo(),
       onDeleteNode: () => this.handleDeleteSelected(),
@@ -226,7 +232,7 @@ export class NodeEditor {
         this.store.regenerateTextures(theme);
       },
       onLabelChange: (newLabel) => {
-        const selected = this.store.getSelected();
+        const selected = this.getSingleSelectedNode();
         if (selected && selected.nodeType !== "composition") {
           this.store.updateLabel(selected.id, newLabel, this.theme);
         }
@@ -237,6 +243,7 @@ export class NodeEditor {
       onMouseUp: (e) => this.handleMouseUp(e, canvas),
       onWheel: (e) => this.handleWheel(e, canvas),
     });
+    this.controls.setMultiSelectActive(this.isMultiSelectMode);
 
     window.addEventListener("resize", () => this.handleResize(canvas));
     window.addEventListener("keydown", (e) => this.handleKeyDown(e));
@@ -277,9 +284,178 @@ export class NodeEditor {
 
   private captureSelectionSnapshot(): SelectionSnapshot {
     return {
-      nodeId: this.store.getSelected()?.id ?? null,
-      edgeId: this.selectedEdgeId,
+      kind: this.selectionKind,
+      nodeIds: [...this.selectedNodeIds],
+      edgeIds: [...this.selectedEdgeIds],
     };
+  }
+
+  private clearSelectionState(): void {
+    this.selectedNodeIds.forEach((nodeId) => {
+      const node = this.store.get(nodeId);
+      if (node) node.isSelected = false;
+    });
+    this.selectedEdgeIds.forEach((edgeId) => {
+      const edge = this.edgeStore.get(edgeId);
+      if (edge) edge.isSelected = false;
+    });
+
+    this.selectedNodeIds.clear();
+    this.selectedEdgeIds.clear();
+    this.selectionKind = null;
+  }
+
+  private syncSelectionKind(): void {
+    if (this.selectedNodeIds.size > 0 && this.selectedEdgeIds.size > 0) {
+      return;
+    }
+
+    if (this.selectedNodeIds.size > 0) {
+      this.selectionKind = "node";
+      return;
+    }
+
+    if (this.selectedEdgeIds.size > 0) {
+      this.selectionKind = "edge";
+      return;
+    }
+
+    this.selectionKind = null;
+  }
+
+  private setNodeSelected(nodeId: number, isSelected: boolean): void {
+    const node = this.store.get(nodeId);
+    if (!node) return;
+
+    node.isSelected = isSelected;
+    if (isSelected) {
+      this.selectedNodeIds.add(nodeId);
+    } else {
+      this.selectedNodeIds.delete(nodeId);
+    }
+    this.syncSelectionKind();
+  }
+
+  private setEdgeSelected(edgeId: number, isSelected: boolean): void {
+    const edge = this.edgeStore.get(edgeId);
+    if (!edge) return;
+
+    edge.isSelected = isSelected;
+    if (isSelected) {
+      this.selectedEdgeIds.add(edgeId);
+    } else {
+      this.selectedEdgeIds.delete(edgeId);
+    }
+    this.syncSelectionKind();
+  }
+
+  private selectOnlyNode(nodeId: number): void {
+    this.clearSelectionState();
+    this.setNodeSelected(nodeId, true);
+  }
+
+  private selectOnlyEdge(edgeId: number): void {
+    this.clearSelectionState();
+    this.setEdgeSelected(edgeId, true);
+  }
+
+  private getSingleSelectedNode(): NodeData | null {
+    if (this.selectedNodeIds.size !== 1 || this.selectedEdgeIds.size > 0) {
+      return null;
+    }
+
+    const nodeId = this.selectedNodeIds.values().next().value as number | undefined;
+    if (nodeId === undefined) return null;
+    return this.store.get(nodeId) ?? null;
+  }
+
+  private getSelectedGroupTarget(): NodeData | null {
+    const selected = this.getSingleSelectedNode();
+    if (!selected) return null;
+
+    if (selected.nodeType === "group") return selected;
+    if (selected.parentId === null) return null;
+
+    const parent = this.store.get(selected.parentId);
+    if (parent && parent.nodeType === "group") return parent;
+    return null;
+  }
+
+  private restoreSelectionSnapshot(snapshot: SelectionSnapshot): void {
+    this.clearSelectionState();
+
+    for (const nodeId of snapshot.nodeIds) {
+      const node = this.store.get(nodeId);
+      if (node) {
+        node.isSelected = true;
+        this.selectedNodeIds.add(nodeId);
+      }
+    }
+
+    for (const edgeId of snapshot.edgeIds) {
+      const edge = this.edgeStore.get(edgeId);
+      if (edge) {
+        edge.isSelected = true;
+        this.selectedEdgeIds.add(edgeId);
+      }
+    }
+
+    this.selectionKind = snapshot.kind;
+    this.syncSelectionKind();
+  }
+
+  private clearSelectionAndHideProperties(): void {
+    this.clearSelectionState();
+    this.controls.hideProperties();
+  }
+
+  private toggleMultiSelectMode(): void {
+    this.isMultiSelectMode = !this.isMultiSelectMode;
+    this.controls.setMultiSelectActive(this.isMultiSelectMode);
+  }
+
+  private selectNodeByClick(nodeId: number): void {
+    const canExtendSelection =
+      this.isMultiSelectMode && (this.selectionKind === null || this.selectionKind === "node");
+
+    if (!canExtendSelection) {
+      this.clearSelectionState();
+      this.setNodeSelected(nodeId, true);
+      return;
+    }
+
+    if (this.selectedNodeIds.has(nodeId)) {
+      if (this.selectedNodeIds.size === 1) {
+        this.clearSelectionState();
+      } else {
+        this.setNodeSelected(nodeId, false);
+      }
+      return;
+    }
+
+    this.setNodeSelected(nodeId, true);
+  }
+
+  private selectEdgeByClick(edgeId: number): void {
+    const canExtendSelection =
+      this.isMultiSelectMode && (this.selectionKind === null || this.selectionKind === "edge");
+
+    if (!canExtendSelection) {
+      this.clearSelectionState();
+      this.setEdgeSelected(edgeId, true);
+      return;
+    }
+
+    if (this.selectedEdgeIds.has(edgeId)) {
+      if (this.selectedEdgeIds.size === 1) {
+        this.clearSelectionState();
+      } else {
+        this.setEdgeSelected(edgeId, false);
+      }
+      return;
+    }
+
+    this.setEdgeSelected(edgeId, true);
   }
 
   private beginLabelEdit(node: NodeData): void {
@@ -301,31 +477,19 @@ export class NodeEditor {
     this.pushHistory({
       undo: () => {
         this.store.updateLabel(node.id, session.previousLabel, this.theme);
-        if (this.store.getSelected()?.id === node.id && node.nodeType !== "composition") {
+        if (this.getSingleSelectedNode()?.id === node.id && node.nodeType !== "composition") {
           this.controls.showProperties(session.previousLabel);
         }
         this.syncToolbarState();
       },
       redo: () => {
         this.store.updateLabel(node.id, nextLabel, this.theme);
-        if (this.store.getSelected()?.id === node.id && node.nodeType !== "composition") {
+        if (this.getSingleSelectedNode()?.id === node.id && node.nodeType !== "composition") {
           this.controls.showProperties(nextLabel);
         }
         this.syncToolbarState();
       },
     });
-  }
-
-  private restoreSelectionSnapshot(snapshot: SelectionSnapshot): void {
-    this.store.deselectAll();
-    this.selectedEdgeId = snapshot.edgeId;
-
-    if (snapshot.nodeId !== null) {
-      const selectedNode = this.store.get(snapshot.nodeId);
-      if (selectedNode) {
-        selectedNode.isSelected = true;
-      }
-    }
   }
 
   private captureNodeSnapshot(node: NodeData): NodeHistorySnapshot {
@@ -366,6 +530,30 @@ export class NodeEditor {
     return snapshots;
   }
 
+  private captureNodeSnapshots(nodeIds: Iterable<number>): NodeHistorySnapshot[] {
+    const snapshots: NodeHistorySnapshot[] = [];
+    const visited = new Set<number>();
+
+    for (const nodeId of nodeIds) {
+      const root = this.store.get(nodeId);
+      if (!root || visited.has(root.id)) continue;
+
+      const visit = (node: NodeData): void => {
+        if (visited.has(node.id)) return;
+        visited.add(node.id);
+        snapshots.push(this.captureNodeSnapshot(node));
+        for (const childId of node.childIds) {
+          const child = this.store.get(childId);
+          if (child) visit(child);
+        }
+      };
+
+      visit(root);
+    }
+
+    return snapshots;
+  }
+
   private captureEdgeSnapshots(nodeIds: Iterable<number>): EdgeHistorySnapshot[] {
     const nodeIdSet = new Set(nodeIds);
     return this.edgeStore
@@ -375,6 +563,23 @@ export class NodeEditor {
           nodeIdSet.has(edge.sourceNodeId) || nodeIdSet.has(edge.targetNodeId)
       )
       .map((edge) => ({ ...edge }));
+  }
+
+  private captureEdgeSnapshotsForSelection(
+    nodeIds: Iterable<number>,
+    edgeIds: Iterable<number>
+  ): EdgeHistorySnapshot[] {
+    const nodeIdSet = new Set(nodeIds);
+    const edgeIdSet = new Set(edgeIds);
+    const snapshots: EdgeHistorySnapshot[] = [];
+
+    for (const edge of this.edgeStore.allEdges()) {
+      if (edgeIdSet.has(edge.id) || nodeIdSet.has(edge.sourceNodeId) || nodeIdSet.has(edge.targetNodeId)) {
+        snapshots.push({ ...edge });
+      }
+    }
+
+    return snapshots;
   }
 
   private applyNodeSnapshot(snapshot: NodeHistorySnapshot): void {
@@ -457,13 +662,11 @@ export class NodeEditor {
     const selectionBefore = this.captureSelectionSnapshot();
     const snapshots = this.captureSubtreeSnapshots(nodeId);
     const removedIds = this.store.collectRemovedIds(nodeId);
-    const edgeSnapshots = this.captureEdgeSnapshots(removedIds);
+    const edgeSnapshots = this.captureEdgeSnapshotsForSelection(removedIds, []);
     const parentId = node.parentId;
 
     this.removeNodeAndIncidentEdges(nodeId);
-    this.store.deselectAll();
-    this.selectedEdgeId = null;
-    this.controls.hideProperties();
+    this.clearSelectionAndHideProperties();
     if (parentId !== null) {
       this.refreshContainerChain(parentId);
     }
@@ -477,9 +680,7 @@ export class NodeEditor {
       },
       redo: () => {
         this.removeNodeAndIncidentEdges(nodeId);
-        this.store.deselectAll();
-        this.selectedEdgeId = null;
-        this.controls.hideProperties();
+        this.clearSelectionAndHideProperties();
         if (parentId !== null) {
           this.refreshContainerChain(parentId);
         }
@@ -499,8 +700,7 @@ export class NodeEditor {
     this.edgeStore.remove(edgeId);
     this.syncHandleStates(edge.sourceNodeId);
     this.syncHandleStates(edge.targetNodeId);
-    this.selectedEdgeId = null;
-    this.controls.hideProperties();
+    this.clearSelectionAndHideProperties();
 
     this.pushHistory({
       undo: () => {
@@ -522,8 +722,70 @@ export class NodeEditor {
           this.syncHandleStates(removed.sourceNodeId);
           this.syncHandleStates(removed.targetNodeId);
         }
-        this.selectedEdgeId = null;
-        this.controls.hideProperties();
+        this.clearSelectionAndHideProperties();
+        this.syncToolbarState();
+      },
+    });
+  }
+
+  private deleteCurrentSelectionWithHistory(): void {
+    const nodeIds = [...this.selectedNodeIds];
+    const edgeIds = [...this.selectedEdgeIds];
+
+    if (nodeIds.length === 0 && edgeIds.length === 0) {
+      return;
+    }
+
+    if (nodeIds.length === 1 && edgeIds.length === 0) {
+      this.deleteNodeTreeWithHistory(nodeIds[0]);
+      return;
+    }
+
+    if (nodeIds.length === 0 && edgeIds.length === 1) {
+      this.deleteEdgeWithHistory(edgeIds[0]);
+      return;
+    }
+
+    this.activeLabelEdit = null;
+    const selectionBefore = this.captureSelectionSnapshot();
+    const snapshots = this.captureNodeSnapshots(nodeIds);
+    const removedIds = new Set<number>();
+    for (const nodeId of nodeIds) {
+      for (const removedId of this.store.collectRemovedIds(nodeId)) {
+        removedIds.add(removedId);
+      }
+    }
+    const edgeSnapshots = this.captureEdgeSnapshotsForSelection(removedIds, edgeIds);
+    const parentIds = new Set<number>();
+    for (const nodeId of nodeIds) {
+      const node = this.store.get(nodeId);
+      if (node && node.parentId !== null) {
+        parentIds.add(node.parentId);
+      }
+    }
+
+    this.removeNodesAndEdges(removedIds, edgeIds);
+    this.clearSelectionAndHideProperties();
+    for (const parentId of parentIds) {
+      this.refreshContainerChain(parentId);
+    }
+
+    this.pushHistory({
+      undo: () => {
+        this.restoreNodeSnapshots(snapshots);
+        this.restoreEdgeSnapshots(edgeSnapshots);
+        this.restoreSelectionSnapshot(selectionBefore);
+        for (const parentId of parentIds) {
+          this.refreshContainerChain(parentId);
+        }
+        this.syncToolbarState();
+      },
+      redo: () => {
+        this.removeNodesAndEdges(removedIds, edgeIds);
+        this.clearSelectionAndHideProperties();
+        for (const parentId of parentIds) {
+          this.refreshContainerChain(parentId);
+        }
         this.syncToolbarState();
       },
     });
@@ -578,8 +840,8 @@ export class NodeEditor {
 
     this.refreshContainerChain(targetGroup.id);
     const snapshot = this.captureNodeSnapshot(composition);
-    this.store.deselectAll();
-    composition.isSelected = true;
+    this.clearSelectionState();
+    this.setNodeSelected(composition.id, true);
     this.controls.hideProperties();
 
     this.pushHistory({
@@ -592,10 +854,8 @@ export class NodeEditor {
       },
       redo: () => {
         this.applyNodeSnapshot(snapshot);
-        this.store.deselectAll();
-        const restored = this.store.get(snapshot.id);
-        if (restored) restored.isSelected = true;
-        this.selectedEdgeId = null;
+        this.clearSelectionState();
+        this.setNodeSelected(snapshot.id, true);
         this.controls.hideProperties();
         this.refreshContainerChain(snapshot.parentId);
         this.syncToolbarState();
@@ -604,15 +864,7 @@ export class NodeEditor {
   }
 
   private handleDeleteSelected(): void {
-    const selected = this.store.getSelected();
-    if (selected) {
-      this.deleteNodeTreeWithHistory(selected.id);
-      return;
-    }
-
-    if (this.selectedEdgeId !== null) {
-      this.deleteEdgeWithHistory(this.selectedEdgeId);
-    }
+    this.deleteCurrentSelectionWithHistory();
   }
 
   private pick(screenX: number, screenY: number): number {
@@ -698,18 +950,6 @@ export class NodeEditor {
     return null;
   }
 
-  private getSelectedGroupTarget(): NodeData | null {
-    const selected = this.store.getSelected();
-    if (!selected) return null;
-
-    if (selected.nodeType === "group") return selected;
-    if (selected.parentId === null) return null;
-
-    const parent = this.store.get(selected.parentId);
-    if (parent && parent.nodeType === "group") return parent;
-    return null;
-  }
-
   private syncToolbarState(): void {
     if (this.hasSelection()) {
       this.controls.enableDelete();
@@ -764,10 +1004,16 @@ export class NodeEditor {
         screenX,
         screenY,
       };
-      this.selectedEdgeId = null;
+      this.selectedEdgeIds.forEach((edgeId) => {
+        const edge = this.edgeStore.get(edgeId);
+        if (edge) edge.isSelected = false;
+      });
+      this.selectedEdgeIds.clear();
+      this.selectionKind = this.selectedNodeIds.size > 0 ? "node" : null;
       this.hoveredHandle = handleHit;
       this.draggingNode = null;
       this.dragSnapshot = null;
+      this.syncToolbarState();
       return;
     }
 
@@ -777,9 +1023,8 @@ export class NodeEditor {
     if (!node) {
       const edgeHit = this.hitTestEdge(screenX, screenY);
       if (edgeHit) {
-        this.store.deselectAll();
         this.controls.hideProperties();
-        this.selectedEdgeId = edgeHit.id;
+        this.selectEdgeByClick(edgeHit.id);
         this.hoveredHandle = null;
         this.draggingNode = null;
         this.dragSnapshot = null;
@@ -787,9 +1032,7 @@ export class NodeEditor {
         return;
       }
 
-      this.store.deselectAll();
-      this.controls.hideProperties();
-      this.selectedEdgeId = null;
+      this.clearSelectionAndHideProperties();
       this.draggingNode = null;
       this.dragSnapshot = null;
       this.hoveredHandle = null;
@@ -832,9 +1075,7 @@ export class NodeEditor {
         NODE_LAYOUT.editBtnClickRadius * NODE_LAYOUT.editBtnClickRadius
       ) {
         this.beginLabelEdit(node);
-        this.store.deselectAll();
-        node.isSelected = true;
-        this.selectedEdgeId = null;
+        this.selectOnlyNode(node.id);
         this.controls.showProperties(node.text);
         this.hoveredHandle = null;
         this.syncToolbarState();
@@ -861,17 +1102,14 @@ export class NodeEditor {
         if (this.store.setParent(child.id, node.id)) {
           this.refreshContainerChain(node.id);
         }
-        this.selectedEdgeId = null;
         this.hoveredHandle = null;
         this.syncToolbarState();
         return;
       }
     }
 
-    this.store.deselectAll();
     this.controls.hideProperties();
-    this.selectedEdgeId = null;
-    node.isSelected = true;
+    this.selectNodeByClick(node.id);
     this.hoveredHandle = null;
     this.draggingNode = node;
     this.dragSnapshot = {
@@ -1018,9 +1256,8 @@ export class NodeEditor {
           );
           if (clone) {
             const cloneSnapshot = this.captureNodeSnapshot(clone);
-            this.store.deselectAll();
-            clone.isSelected = true;
-            this.selectedEdgeId = null;
+            this.clearSelectionState();
+            this.setNodeSelected(clone.id, true);
             this.refreshContainerChain(hoveredContainer.id);
             historyEntry = {
               undo: () => {
@@ -1042,9 +1279,8 @@ export class NodeEditor {
                   this.theme
                 );
                 if (createdClone) {
-                  this.store.deselectAll();
-                  createdClone.isSelected = true;
-                  this.selectedEdgeId = null;
+                  this.clearSelectionState();
+                  this.setNodeSelected(createdClone.id, true);
                   this.refreshContainerChain(hoveredContainer.id);
                 }
                 this.syncToolbarState();
@@ -1277,11 +1513,25 @@ export class NodeEditor {
     return null;
   }
 
-  private removeNodeAndIncidentEdges(nodeId: number): void {
-    const removedIds = this.store.collectRemovedIds(nodeId);
-    const removedIdSet = new Set(removedIds);
-    const removedEdges = this.edgeStore.removeEdgesForNodes(removedIds);
+  private removeNodesAndEdges(nodeIds: Iterable<number>, edgeIds: Iterable<number>): void {
+    const removedNodeIds = new Set<number>();
+    for (const nodeId of nodeIds) {
+      for (const removedId of this.store.collectRemovedIds(nodeId)) {
+        removedNodeIds.add(removedId);
+      }
+    }
+
+    const removedIdSet = new Set(removedNodeIds);
+    const removedEdges = this.edgeStore.removeEdgesForNodes(removedNodeIds);
     const affectedNodeIds = new Set<number>();
+
+    const selectedEdgeIdSet = new Set(edgeIds);
+    for (const edgeId of selectedEdgeIdSet) {
+      const removed = this.edgeStore.remove(edgeId);
+      if (removed) {
+        removedEdges.push(removed);
+      }
+    }
 
     for (const edge of removedEdges) {
       if (!removedIdSet.has(edge.sourceNodeId)) {
@@ -1292,15 +1542,17 @@ export class NodeEditor {
       }
     }
 
-    this.store.remove(nodeId);
+    for (const nodeId of removedNodeIds) {
+      this.store.remove(nodeId);
+    }
 
     for (const affectedNodeId of affectedNodeIds) {
       this.syncHandleStates(affectedNodeId);
     }
+  }
 
-    if (this.selectedEdgeId !== null && removedEdges.some((edge) => edge.id === this.selectedEdgeId)) {
-      this.selectedEdgeId = null;
-    }
+  private removeNodeAndIncidentEdges(nodeId: number): void {
+    this.removeNodesAndEdges([nodeId], []);
   }
 
   private syncHandleStates(nodeId: number): void {
@@ -1317,7 +1569,7 @@ export class NodeEditor {
   }
 
   private hasSelection(): boolean {
-    return this.store.getSelected() !== undefined || this.selectedEdgeId !== null;
+    return this.selectedNodeIds.size > 0 || this.selectedEdgeIds.size > 0;
   }
 
   private handleWheel(e: WheelEvent, canvas: HTMLCanvasElement): void {

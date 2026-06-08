@@ -59,7 +59,7 @@ export class EdgeStore {
       targetHandleSide,
       edgeType = 'cubic',
       headType = 'arrow',
-      headSkinId = 'pill',
+      headSkinId = 'arrow',
       label = '',
       isSelected = false,
       visible = true,
