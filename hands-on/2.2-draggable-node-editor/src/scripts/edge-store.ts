@@ -1,4 +1,10 @@
-import { EdgeData, EdgeHeadType, EdgeType, HandleSide } from './types.js';
+import {
+  EdgeData,
+  EdgeHeadSkinId,
+  EdgeHeadType,
+  EdgeType,
+  HandleSide,
+} from './types.js';
 
 export interface CreateEdgeParams {
   sourceNodeId: number;
@@ -7,6 +13,7 @@ export interface CreateEdgeParams {
   targetHandleSide: HandleSide;
   edgeType?: EdgeType;
   headType?: EdgeHeadType;
+  headSkinId?: EdgeHeadSkinId;
   label?: string;
   isSelected?: boolean;
   visible?: boolean;
@@ -52,6 +59,7 @@ export class EdgeStore {
       targetHandleSide,
       edgeType = 'cubic',
       headType = 'arrow',
+      headSkinId = 'pill',
       label = '',
       isSelected = false,
       visible = true,
@@ -81,6 +89,7 @@ export class EdgeStore {
       targetHandleSide,
       edgeType,
       headType,
+      headSkinId,
       label,
       isSelected,
       visible,

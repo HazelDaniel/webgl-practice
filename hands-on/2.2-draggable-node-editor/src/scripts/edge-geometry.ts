@@ -11,8 +11,7 @@ export interface Point2D {
 
 export interface ArrowheadGeometry {
   tip: Point2D;
-  left: Point2D;
-  right: Point2D;
+  tangent: Point2D;
 }
 
 export interface EdgeRouteGeometry {
@@ -48,7 +47,13 @@ export function buildEdgeRouteGeometry(
   const sourceWorld = getHandleWorldPoint(sourceNode.id, sourceHandle, store, camera);
   const targetWorld = getHandleWorldPoint(targetNode.id, targetHandle, store, camera);
 
-  const route = buildCubicRoute(sourceWorld, edge.sourceHandleSide, targetWorld, edge.targetHandleSide, edge.edgeType);
+  const route = buildCubicRoute(
+    sourceWorld,
+    edge.sourceHandleSide,
+    targetWorld,
+    edge.targetHandleSide,
+    edge.edgeType
+  );
   const screenPoints = route.worldPoints.map((point) => camera.worldToScreen(point.x, point.y));
   const labelWorldPoint = getPolylineMidpoint(route.worldPoints);
   const labelScreenPoint = camera.worldToScreen(labelWorldPoint.x, labelWorldPoint.y);
@@ -94,6 +99,7 @@ export function buildConnectionPreviewGeometry(
       targetHandleSide: oppositeSide,
       edgeType: 'cubic',
       headType: 'none',
+      headSkinId: 'arrow',
       label: '',
       isSelected: false,
       visible: true,
@@ -134,7 +140,7 @@ function buildCubicRoute(
   if (edgeType === 'line') {
     return {
       worldPoints: [sourceWorld, targetWorld],
-      arrowhead: buildArrowhead(sourceWorld, targetWorld),
+      arrowhead: buildEdgeHeadGeometry(sourceWorld, targetWorld),
     };
   }
 
@@ -170,7 +176,7 @@ function buildCubicRoute(
 
   return {
     worldPoints,
-    arrowhead: buildArrowhead(
+    arrowhead: buildEdgeHeadGeometry(
       targetWorld,
       targetWorld,
       derivativeAtEnd(control2, targetWorld)
@@ -178,7 +184,7 @@ function buildCubicRoute(
   };
 }
 
-function buildArrowhead(
+function buildEdgeHeadGeometry(
   tip: Point2D,
   previousPoint: Point2D,
   tangentOverride?: Point2D
@@ -192,24 +198,9 @@ function buildArrowhead(
 
   if (tangent.x === 0 && tangent.y === 0) return null;
 
-  const headLength = 14;
-  const headWidth = 9;
-  const base: Point2D = {
-    x: tip.x - tangent.x * headLength,
-    y: tip.y - tangent.y * headLength,
-  };
-  const normal: Point2D = { x: -tangent.y, y: tangent.x };
-
   return {
     tip,
-    left: {
-      x: base.x + normal.x * headWidth,
-      y: base.y + normal.y * headWidth,
-    },
-    right: {
-      x: base.x - normal.x * headWidth,
-      y: base.y - normal.y * headWidth,
-    },
+    tangent,
   };
 }
 

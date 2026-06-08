@@ -10,6 +10,7 @@ export type HandleSide = 'left' | 'right';
 export type HandleShape = 'circle' | 'square';
 export type EdgeType = 'line' | 'cubic' | 'line-curve';
 export type EdgeHeadType = 'none' | 'arrow';
+export type EdgeHeadSkinId = 'arrow' | 'chevron' | 'diamond' | 'pill';
 
 export interface HandleStyle {
   shape: HandleShape;
@@ -35,6 +36,7 @@ export interface EdgeData {
   targetHandleSide: HandleSide;
   edgeType: EdgeType;
   headType: EdgeHeadType;
+  headSkinId: EdgeHeadSkinId;
   label: string;
   isSelected: boolean;
   visible: boolean;

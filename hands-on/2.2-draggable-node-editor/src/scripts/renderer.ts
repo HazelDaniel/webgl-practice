@@ -8,6 +8,10 @@ import { BGGeometryNode, GeometryNode } from "./geometry.js";
 import { Camera } from "./camera.js";
 import { EdgeStore } from "./edge-store.js";
 import {
+  EdgeHeadTextureLibrary,
+  EdgeHeadTextureRegion,
+} from "./edge-head-textures.js";
+import {
   buildConnectionPreviewGeometry,
   buildEdgeRouteGeometry,
   EdgeRouteGeometry,
@@ -53,11 +57,14 @@ export class Renderer {
     if (!this.edgeHeadBuffer) {
       throw new Error('Unable to allocate edge head buffer');
     }
+
+    this.edgeHeadTextures = new EdgeHeadTextureLibrary(gl);
   }
 
   private labelCtx: CanvasRenderingContext2D | null;
   private edgeVertexBuffer: WebGLBuffer;
   private edgeHeadBuffer: WebGLBuffer;
+  private edgeHeadTextures: EdgeHeadTextureLibrary;
   private edgeFrame: EdgeRouteGeometry[] = [];
 
   /** Call once after each canvas resize to update the orthographic projection. */
@@ -238,26 +245,10 @@ export class Renderer {
       }
 
       if (geometry.arrowhead) {
-        headDraws.push({ first: headCursor, count: 4 });
-        headCursor += 4;
-        headVertices.push(
-          geometry.arrowhead.tip.x,
-          geometry.arrowhead.tip.y,
-          0,
-          0,
-          geometry.arrowhead.left.x,
-          geometry.arrowhead.left.y,
-          0,
-          0,
-          geometry.arrowhead.tip.x,
-          geometry.arrowhead.tip.y,
-          0,
-          0,
-          geometry.arrowhead.right.x,
-          geometry.arrowhead.right.y,
-          0,
-          0
-        );
+        const region = this.edgeHeadTextures.getRegion(edge.headSkinId);
+        headDraws.push({ first: headCursor, count: 6 });
+        headCursor += 6;
+        headVertices.push(...this.buildHeadQuadVertices(geometry.arrowhead, region));
       }
     }
 
@@ -284,10 +275,14 @@ export class Renderer {
     if (headVertices.length > 0) {
       this.bindEdgeVertexBuffer(this.edgeHeadBuffer);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(headVertices), gl.DYNAMIC_DRAW);
-      gl.uniform4f(this.locations.u_Color, 0.38, 0.62, 1.0, 0.9);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, this.edgeHeadTextures.texture);
+      gl.uniform1i(this.locations.u_UseTexture, 1);
+      gl.uniform1i(this.locations.u_Sampler, 0);
+      gl.uniform4f(this.locations.u_Color, 1, 1, 1, 1);
       let headOffset = 0;
       for (const draw of headDraws) {
-        gl.drawArrays(gl.LINES, headOffset, draw.count);
+        gl.drawArrays(gl.TRIANGLES, headOffset, draw.count);
         headOffset += draw.count;
       }
     }
@@ -332,32 +327,80 @@ export class Renderer {
     gl.drawArrays(gl.LINE_STRIP, 0, geometry.worldPoints.length);
 
     if (geometry.arrowhead) {
+      const region = this.edgeHeadTextures.getRegion(geometry.edge.headSkinId);
+      const quad = this.buildHeadQuadVertices(geometry.arrowhead, region);
       this.bindEdgeVertexBuffer(this.edgeHeadBuffer);
-      gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array([
-          geometry.arrowhead.tip.x,
-          geometry.arrowhead.tip.y,
-          0,
-          0,
-          geometry.arrowhead.left.x,
-          geometry.arrowhead.left.y,
-          0,
-          0,
-          geometry.arrowhead.tip.x,
-          geometry.arrowhead.tip.y,
-          0,
-          0,
-          geometry.arrowhead.right.x,
-          geometry.arrowhead.right.y,
-          0,
-          0,
-        ]),
-        gl.DYNAMIC_DRAW
-      );
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(quad), gl.DYNAMIC_DRAW);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, this.edgeHeadTextures.texture);
+      gl.uniform1i(this.locations.u_UseTexture, 1);
+      gl.uniform1i(this.locations.u_Sampler, 0);
       gl.uniform4f(this.locations.u_Color, ...this.parseColor(headColor));
-      gl.drawArrays(gl.LINES, 0, 4);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
+  }
+
+  private buildHeadQuadVertices(
+    head: NonNullable<EdgeRouteGeometry["arrowhead"]>,
+    region: EdgeHeadTextureRegion
+  ): number[] {
+    const headLength = 18;
+    const headWidth = 12;
+    const halfWidth = headWidth / 2;
+
+    const tangentX = head.tangent.x;
+    const tangentY = head.tangent.y;
+    const backX = -tangentX;
+    const backY = -tangentY;
+    const normalX = -tangentY;
+    const normalY = tangentX;
+
+    const baseX = head.tip.x + backX * headLength;
+    const baseY = head.tip.y + backY * headLength;
+
+    const topLeft = {
+      x: baseX + normalX * halfWidth,
+      y: baseY + normalY * halfWidth,
+    };
+    const bottomLeft = {
+      x: baseX - normalX * halfWidth,
+      y: baseY - normalY * halfWidth,
+    };
+    const bottomRight = {
+      x: head.tip.x - normalX * halfWidth,
+      y: head.tip.y - normalY * halfWidth,
+    };
+    const topRight = {
+      x: head.tip.x + normalX * halfWidth,
+      y: head.tip.y + normalY * halfWidth,
+    };
+
+    return [
+      topLeft.x,
+      topLeft.y,
+      region.u0,
+      region.v0,
+      bottomLeft.x,
+      bottomLeft.y,
+      region.u0,
+      region.v1,
+      bottomRight.x,
+      bottomRight.y,
+      region.u1,
+      region.v1,
+      topLeft.x,
+      topLeft.y,
+      region.u0,
+      region.v0,
+      bottomRight.x,
+      bottomRight.y,
+      region.u1,
+      region.v1,
+      topRight.x,
+      topRight.y,
+      region.u1,
+      region.v0,
+    ];
   }
 
   private bindEdgeVertexBuffer(buffer: WebGLBuffer): void {
@@ -555,6 +598,7 @@ export class Renderer {
       gl.bindTexture(gl.TEXTURE_2D, node.texture);
       gl.uniform1i(this.locations.u_UseTexture, 1);
       gl.uniform1i(this.locations.u_Sampler, 0);
+      gl.uniform4f(this.locations.u_Color, 1, 1, 1, 1);
     }
 
     gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);

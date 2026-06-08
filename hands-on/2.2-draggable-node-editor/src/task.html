@@ -208,7 +208,7 @@
       void main() {
         if (u_UseTexture) {
           vec4 texColor = texture2D(u_Sampler, v_TexCoord);
-          gl_FragColor = texColor;
+          gl_FragColor = texColor * u_Color;
         } else {
           gl_FragColor = u_Color;
         }
