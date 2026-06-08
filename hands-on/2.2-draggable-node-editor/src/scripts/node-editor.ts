@@ -205,9 +205,10 @@ export class NodeEditor {
 
     const container = document.getElementById("sidebar");
     const historyPane = document.getElementById("undo-redo-wrapper")!;
+    const toolPane = document.getElementById("tool-panel");
     if (!container) throw new Error('"sidebar" element not found');
 
-    this.controls = new UIControls(canvas, container, historyPane, {
+    this.controls = new UIControls(canvas, container, historyPane, toolPane, {
       onAddNode: () => this.handleAddNode(canvas, "node"),
       onAddGroup: () => this.handleAddNode(canvas, "group"),
       onAddComposition: () => this.handleAddComposition(canvas),

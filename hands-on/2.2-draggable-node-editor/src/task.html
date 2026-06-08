@@ -23,23 +23,33 @@
     <canvas id="2d-text-canvas" class="hidden"></canvas>
 
     <!-- Overlay 2D Canvas for crisp floating labels -->
-    <canvas id="2d-label-canvas" style="pointer-events: none; z-index: 5;"></canvas>
+    <canvas
+      id="2d-label-canvas"
+      style="pointer-events: none; z-index: 5"
+    ></canvas>
 
     <!-- Screen Reader Only Node List -->
-    <ul id="sr-node-list" class="sr-only" aria-label="Workflow graph nodes" role="list"></ul>
+    <ul
+      id="sr-node-list"
+      class="sr-only"
+      aria-label="Workflow graph nodes"
+      role="list"
+    ></ul>
 
     <div id="undo-redo-wrapper">
-      <button id="btn-undo" class="secondary" disabled>
-        Undo
-      </button>
-      <button id="btn-redo" class="secondary" disabled>
-        Redo
-      </button>
+      <button id="btn-undo" class="secondary" disabled>Undo</button>
+      <button id="btn-redo" class="secondary" disabled>Redo</button>
     </div>
 
     <!-- Sidebar Overlay -->
     <aside id="sidebar" class="sidebar collapsed">
-      <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar">‹</button>
+      <button
+        id="sidebar-toggle"
+        class="sidebar-toggle"
+        aria-label="Toggle sidebar"
+      >
+        ‹
+      </button>
       <div class="sidebar-content">
         <div class="sidebar-section">
           <div class="section-header">Canvas</div>
@@ -57,32 +67,124 @@
           </div>
         </div>
 
-        <div class="sidebar-section">
-          <div class="section-header">Actions</div>
-          <div class="controls">
-            <button id="btn-add-node" class="primary">+ Add Node</button>
-            <button id="btn-add-group" class="secondary">+ Add Group</button>
-            <button id="btn-add-composition" class="secondary" disabled>
-              + Add Composition
-            </button>
-
-
-
-            <button id="btn-delete-node" class="danger" disabled>
-              🗑️ Delete Selected
-            </button>
-          </div>
-        </div>
-
-        <div id="node-properties" class="sidebar-section" style="display:none">
+        <div id="node-properties" class="sidebar-section" style="display: none">
           <div class="section-header">Properties</div>
           <div class="settings-group vertical">
             <label for="node-label-input">Label</label>
-            <input type="text" id="node-label-input" placeholder="Node label..." class="text-input" />
+            <input
+              type="text"
+              id="node-label-input"
+              placeholder="Node label..."
+              class="text-input"
+            />
           </div>
         </div>
       </div>
     </aside>
+
+    <div id="tool-panel">
+      <div class="panel-left">
+        <span class="active">
+          <svg
+            viewBox="0 0 33 36"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="size-full scale-75"
+          >
+            <path
+              d="M12.8812 33.4262C12.6148 34.3964 11.2436 34.41 10.958 33.4453L1.5 1.5L30.8157 15.5062C31.6862 15.9221 31.5212 17.2077 30.574 17.3904L20.2034 19.3902C17.9609 19.8227 16.1583 21.4907 15.5536 23.6931L12.8812 33.4262Z"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </span>
+
+        <button id="btn-add-node">
+          <svg
+            viewBox="0 0 16 16"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+          >
+            <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+            <g
+              id="SVGRepo_tracerCarrier"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            ></g>
+            <g id="SVGRepo_iconCarrier">
+              <path
+                fill="currentColor"
+                fill-rule="evenodd"
+                d="M4 6.25A2.25 2.25 0 016.25 4h3a2.25 2.25 0 012.25 2.25V7h3.25a.75.75 0 010 1.5H11.5v.75a2.25 2.25 0 01-2.25 2.25h-3A2.25 2.25 0 014 9.25V8.5H.75a.75.75 0 010-1.5H4v-.75zm6 0a.75.75 0 00-.75-.75h-3a.75.75 0 00-.75.75v3c0 .414.336.75.75.75h3a.75.75 0 00.75-.75v-3z"
+                clip-rule="evenodd"
+              ></path>
+            </g>
+          </svg>
+        </button>
+
+        <button id="btn-add-composition">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+            <g
+              id="SVGRepo_tracerCarrier"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            ></g>
+            <g id="SVGRepo_iconCarrier">
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M20.9999 9.88379C21.0033 9.63406 20.8823 9.3827 20.636 9.23825L13.1419 4.84334C12.4534 4.43956 11.6007 4.43847 10.9111 4.84047L3.36938 9.23727C3.12196 9.38152 3.00042 9.63347 3.00386 9.88379H2.99995V14.3148H3.00408C3.01115 14.5585 3.13674 14.7991 3.38001 14.9355L10.9431 19.1778C11.6163 19.5554 12.4378 19.5543 13.11 19.175L20.6253 14.9346C20.8675 14.7979 20.9926 14.5579 20.9996 14.3148L20.9999 9.88379ZM4.76444 10.4474C4.58407 10.3456 4.35534 10.4093 4.25357 10.5897C4.15179 10.7701 4.21551 10.9988 4.39589 11.1006L10.7548 14.6885C11.5471 15.1355 12.516 15.1331 13.306 14.6823L19.5841 11.0997C19.7639 10.997 19.8265 10.768 19.7239 10.5881C19.6212 10.4083 19.3922 10.3456 19.2123 10.4483L12.9343 14.0309C12.3735 14.3509 11.6857 14.3526 11.1234 14.0353L4.76444 10.4474Z"
+                fill="currentColor"
+              ></path>
+            </g>
+          </svg>
+        </button>
+
+        <button id="btn-add-group">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+            <g
+              id="SVGRepo_tracerCarrier"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            ></g>
+            <g id="SVGRepo_iconCarrier">
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M12.3106 4.81534L19.806 12.3107L12.3106 19.806L4.81531 12.3107L12.3106 4.81534ZM6.93663 12.3107L12.3106 17.6847L17.6847 12.3107L12.3106 6.93666L6.93663 12.3107Z"
+                fill="currentColor"
+              ></path>
+              <circle cx="12" cy="5.5" r="2.5" fill="currentColor"></circle>
+              <circle cx="12" cy="18.5" r="2.5" fill="currentColor"></circle>
+              <circle cx="5.5" cy="12" r="2.5" fill="currentColor"></circle>
+              <circle cx="18.5" cy="12" r="2.5" fill="currentColor"></circle>
+            </g>
+          </svg>
+        </button>
+
+        <button id="btn-delete-node">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M4 7H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 10L7.70141 19.3578C7.87432 20.3088 8.70258 21 9.66915 21H14.3308C15.2974 21 16.1257 20.3087 16.2986 19.3578L18 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M9 5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5V7H9V5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path> </g></svg>
+        </button>
+      </div>
+      <div class="panel-right">
+
+        <button id="btn-play-sim">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M15 5V19M21 5V19M3 7.20608V16.7939C3 17.7996 3 18.3024 3.19886 18.5352C3.37141 18.7373 3.63025 18.8445 3.89512 18.8236C4.20038 18.7996 4.55593 18.4441 5.26704 17.733L10.061 12.939C10.3897 12.6103 10.554 12.446 10.6156 12.2565C10.6697 12.0898 10.6697 11.9102 10.6156 11.7435C10.554 11.554 10.3897 11.3897 10.061 11.061L5.26704 6.26704C4.55593 5.55593 4.20038 5.20038 3.89512 5.17636C3.63025 5.15551 3.37141 5.26273 3.19886 5.46476C3 5.69759 3 6.20042 3 7.20608Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path> </g></svg>
+        </button>
+      </div>
+      </div>
+    </div>
 
     <script type="x-shader/vertex" id="v-shader">
       attribute vec4 a_Position;
