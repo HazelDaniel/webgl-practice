@@ -611,6 +611,7 @@ export class NodeEditor {
         snapshot.handleStates.find((entry) => entry.side === handle.side)?.isConnected ??
         false,
     }));
+    this.store.refreshNodeTexture(node, this.theme);
 
     this.store.forceRestoreNodePlacement(
       snapshot.id,

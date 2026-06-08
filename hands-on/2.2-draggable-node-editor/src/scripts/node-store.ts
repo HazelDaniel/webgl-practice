@@ -430,7 +430,7 @@ export class NodeStore {
     this.a11yTree.addNode(node.id, node.text, node.nodeType);
   }
 
-  private refreshNodeTexture(node: NodeData, theme?: ThemeName): void {
+  refreshNodeTexture(node: NodeData, theme?: ThemeName): void {
     const oldTexture = node.texture;
     node.texture = createTextTexture(
       this.gl,
