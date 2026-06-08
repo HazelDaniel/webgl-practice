@@ -792,30 +792,57 @@ export class NodeEditor {
     });
   }
 
-  private handleAddNode(canvas: HTMLCanvasElement, nodeType: NodeType): void {
+  private createNodeWithHistory(
+    nodeType: NodeType,
+    worldX: number,
+    worldY: number,
+    parentId: number | null = null
+  ): NodeData | null {
     const selectionBefore = this.captureSelectionSnapshot();
-    const screenX = Math.random() * (canvas.width - 200) + 100;
-    const screenY = Math.random() * (canvas.height - 200) + 100;
-    const { x, y } = this.camera.screenToWorld(screenX, screenY);
     const label =
       nodeType === "group"
         ? `Group ${this.store.nextNodeId}`
         : `Node ${this.store.nextNodeId}`;
-    const node = this.store.add(x, y, label, this.theme, nodeType);
+    const node = this.store.add(worldX, worldY, label, this.theme, nodeType);
+
+    if (parentId !== null && !this.store.setParent(node.id, parentId)) {
+      this.store.remove(node.id);
+      return null;
+    }
+
+    if (parentId !== null) {
+      this.refreshContainerChain(parentId);
+    }
+
     const snapshot = this.captureNodeSnapshot(node);
 
     this.pushHistory({
       undo: () => {
         this.removeNodeAndIncidentEdges(snapshot.id);
         this.restoreSelectionSnapshot(selectionBefore);
+        if (parentId !== null) {
+          this.refreshContainerChain(parentId);
+        }
         this.syncToolbarState();
       },
       redo: () => {
         this.applyNodeSnapshot(snapshot);
+        if (parentId !== null) {
+          this.refreshContainerChain(parentId);
+        }
         this.restoreSelectionSnapshot(selectionBefore);
         this.syncToolbarState();
       },
     });
+
+    return node;
+  }
+
+  private handleAddNode(canvas: HTMLCanvasElement, nodeType: NodeType): void {
+    const screenX = Math.random() * (canvas.width - 200) + 100;
+    const screenY = Math.random() * (canvas.height - 200) + 100;
+    const { x, y } = this.camera.screenToWorld(screenX, screenY);
+    this.createNodeWithHistory(nodeType, x, y);
   }
 
   private handleAddComposition(canvas: HTMLCanvasElement): void {
@@ -1093,16 +1120,7 @@ export class NodeEditor {
         plusDx * plusDx + plusDy * plusDy <=
         NODE_LAYOUT.plusBtnClickRadius * NODE_LAYOUT.plusBtnClickRadius
       ) {
-        const child = this.store.add(
-          0,
-          0,
-          `Node ${this.store.nextNodeId}`,
-          this.theme,
-          "node"
-        );
-        if (this.store.setParent(child.id, node.id)) {
-          this.refreshContainerChain(node.id);
-        }
+        this.createNodeWithHistory("node", 0, 0, node.id);
         this.hoveredHandle = null;
         this.syncToolbarState();
         return;

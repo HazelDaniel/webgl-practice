@@ -1,1 +1,3 @@
 - I did not change the current stacking-order behavior; selection still does not automatically reorder draw priority.
+- undo doesn't apply to nodes created in-group using the buttons attached to each group node
+
